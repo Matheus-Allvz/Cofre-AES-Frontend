@@ -1,0 +1,58 @@
+{
+  "_gerado_por": "test/vetores/gerar_vetores.py (argon2-cffi + cryptography)",
+  "ids": {
+    "usuario": "3f1c9a2e-5b7d-4e8f-9a01-23456789abcd",
+    "org": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+    "colecao": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e"
+  },
+  "kdf": {
+    "senha": "Cofre de téste ﬁxo 2026",
+    "kdf": {
+      "tipo": "argon2id",
+      "m": 65536,
+      "t": 3,
+      "p": 1
+    },
+    "sal": "OLKlV7yqComkjcMWKW_Dag",
+    "master_key": "1Tv_e8lwA8xQCzLwMfpfXihO9DFuX99YpZR5JgtTVi4",
+    "auth_hash": "Gc7c18PETlToDqpYZSt7VVi1fn6xtXHaFV_uIqUS6Bw",
+    "kek_v1": {
+      "pt": "gkxeLdwC8SQpbtejMwn1_HvfHLQdQnh_3Np1PiZIQ0s",
+      "iv": "g7adPotLiyRbquIU",
+      "aad": "cofre-emp/v1|userkey|3f1c9a2e-5b7d-4e8f-9a01-23456789abcd",
+      "env": "v1.g7adPotLiyRbquIU.oho4LbiROhzlz1cZjJKDweIeKDpNAoBFaQvh0t-T0z03udGkV4GCvaZ0MmL7OVCc"
+    }
+  },
+  "v1": {
+    "chave": "gkxeLdwC8SQpbtejMwn1_HvfHLQdQnh_3Np1PiZIQ0s",
+    "iv": "bt7-6zRF8qa9qiIF",
+    "pt_texto": "segredo de teste ✓",
+    "aad": "cofre-emp/v1|privkey|3f1c9a2e-5b7d-4e8f-9a01-23456789abcd",
+    "env": "v1.bt7-6zRF8qa9qiIF.DbFWtSm2iE7xgjvT6E4OD6i2aoKQSxHoNYAIYncK2l_-jhOV"
+  },
+  "recovery": {
+    "bytes": "3QHCxOinoT1u1vVFc_W55IuiiYUaTXMv-ReITCtffds",
+    "formatada": "3UA4-FRHI-U6QT-23WW-6VCX-H5NZ-4SF2-FCMF-DJGX-GL7Z-C6EE-YK27-PXNQ",
+    "recup_auth": "_3OEkTYLLxkpjtCBShlmw55sLl1WZrMhT9xy0E92vPM",
+    "recup_kek_v1": {
+      "pt": "gkxeLdwC8SQpbtejMwn1_HvfHLQdQnh_3Np1PiZIQ0s",
+      "iv": "hu2-Tsi4ykNAReTE",
+      "aad": "cofre-emp/v1|userkey-recup|3f1c9a2e-5b7d-4e8f-9a01-23456789abcd",
+      "env": "v1.hu2-Tsi4ykNAReTE.vkgTCcaEOdAoAsLLdJcEfOL1wxhF5qgi-VZrHLgRX2eK1IDF7Kk7Mxfo-UbKE7Tm"
+    }
+  },
+  "x1": {
+    "dest_priv_pkcs8": "MC4CAQAwBQYDK2VuBCIEIA5XBeeYS2-spdczShiW06EVPDibZuOyWozHCUSbqixG",
+    "dest_pub": "ABlZ4N7RyU-oY9myvpCOcJp1ewKZR7GxUpPgeQ94lGM",
+    "eph_priv_pkcs8": "MC4CAQAwBQYDK2VuBCIEIA3K-quWJMzFHsbOnpHx-AQ1wybvJpnoC4SG_fWa9BkO",
+    "eph_pub": "ckSecyrTgtZSM5QVCe7XqJJFf3KYoQM2JmIL6y5zpm4",
+    "collection_key": "09sOyC2C7IVw3ETI2zbOeXvaBJDjia_K3Xy3ZBhZK-o",
+    "iv": "cSu-xL8p0aLb1Nnf",
+    "aad": "cofre-emp/v1|env-colecao|0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d|b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e|3f1c9a2e-5b7d-4e8f-9a01-23456789abcd|1",
+    "env": "x1.ckSecyrTgtZSM5QVCe7XqJJFf3KYoQM2JmIL6y5zpm4.cSu-xL8p0aLb1Nnf.J14DOzLlrnybHL3wcEsvho0Qs5Ch93mND0y2uFgEADJ0_SwL3r57RIJnVnW0oOv4"
+  },
+  "fingerprint": {
+    "pub": "ABlZ4N7RyU-oY9myvpCOcJp1ewKZR7GxUpPgeQ94lGM",
+    "fp": "5226 27FE A155 DAA0 207F 2C57 A59B FB7C"
+  }
+}
