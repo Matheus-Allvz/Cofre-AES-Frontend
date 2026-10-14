@@ -144,7 +144,11 @@ export async function _paraTesteEnvelopeX1(pubDestino, collectionKeyBytes, aad, 
 /** Envelopa a collectionKey (32 B) para a chave pública raw do destinatário. */
 export async function envelopeX1(pubDestino, collectionKeyBytes, aad) {
   const eph = await gerarParX25519();
-  return _paraTesteEnvelopeX1(pubDestino, collectionKeyBytes, aad, eph.privadaPkcs8, eph.publica, aleatorio(12));
+  try {
+    return await _paraTesteEnvelopeX1(pubDestino, collectionKeyBytes, aad, eph.privadaPkcs8, eph.publica, aleatorio(12));
+  } finally {
+    eph.privadaPkcs8.fill(0); // privada efêmera não sobrevive ao envelope
+  }
 }
 
 const RE_X1 = /^x1\.([A-Za-z0-9_-]{43})\.([A-Za-z0-9_-]{16})\.([A-Za-z0-9_-]{22,})$/;
