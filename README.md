@@ -1,37 +1,29 @@
-# Cofre de Senhas Corporativo — Frontend
+# Cofre AES Empresarial — Frontend
 
-Interface web (SPA estática, HTML/CSS/JS puro, sem build step) para o
-[Cofre_AES](https://vault.matheus-alves.dev), consumindo a API REST já em
-produção.
+SPA estática (HTML/CSS/JS em módulos ES, sem build, sem dependências npm) do cofre de senhas
+zero-knowledge: toda cifragem/decifragem acontece no browser (`public/js/cripto.js`).
+Plano e arquitetura: `docs/plano/` do repositório da API (`Matheus-Allvz/Cofre-AES`, branch `empresarial`).
 
-## Rodando localmente
-
-Não precisa de instalação. Basta servir os arquivos estáticos:
+## Rodar
 
 ```bash
-python -m http.server 8888
+docker compose up -d --build        # http://127.0.0.1:8097 (nginx com os headers de segurança)
 ```
 
-e abrir `http://localhost:8888`. Também funciona abrindo `index.html`
-diretamente no navegador, exceto por eventuais restrições de CORS/clipboard
-dependendo do navegador — nesse caso, prefira um servidor estático simples.
+`/api/*` é repassado a `API_UPSTREAM` (padrão `http://host.docker.internal:8098`) só em desenvolvimento;
+em produção o Caddy roteia `/api/*` antes. Com a API fora do ar a página mostra o aviso.
+`/?diag=1` mostra um botão que mede o tempo do Argon2id.
 
-## Segurança
+## Testar (Node >= 22)
 
-A senha-mestra do cofre e as senhas dos segredos ficam só em memória
-(variável JS), nunca em `localStorage`, cookie ou qualquer storage que
-sobrevive ao fechar a aba. Recarregar a página encerra a sessão — isso é
-intencional. Nenhuma senha é logada no console.
+```bash
+node --test test/unit/
+python test/vetores/gerar_vetores.py --verificar   # vetores cruzados gerados pelo Python (ver test/vetores/README.md)
+```
 
-## Guardar o ID do cofre
+## Estrutura
 
-A API não tem busca por nome nem listagem de cofres. O único jeito de
-voltar a um cofre já criado é o `id` (UUID) que a criação devolveu — a
-interface mostra e destaca esse id na hora da criação, com botão de
-copiar.
-
-## Deploy
-
-`Dockerfile` + `docker-compose.yml` (nginx:alpine, porta 8096) e
-`deploy.sh` + `.github/workflows/deploy.yml` para deploy automático via SSH
-em push para `main`, no mesmo padrão do backend Cofre_AES.
+- `public/js/cripto.js`: KDF, HKDF, envelopes `v1`/`x1`, AAD, recovery key, fingerprint.
+- `public/js/dom.js`: único ponto que cria DOM (sem `innerHTML`).
+- `public/vendor/`: bibliotecas vendorizadas com SHA-256 registrado em `public/vendor/README.md`.
+- `nginx.conf`: template do nginx com CSP estrita e Trusted Types.

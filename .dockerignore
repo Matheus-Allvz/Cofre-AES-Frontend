@@ -1,6 +1,10 @@
 .git
 .github
-Dockerfile
+.env
+test
+scripts
+docs
+*.md
+package.json
 docker-compose.yml
-deploy.sh
-README.md
+Dockerfile

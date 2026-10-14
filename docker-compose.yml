@@ -1,7 +1,11 @@
 services:
-  cofre-aes-frontend:
+  front:
     build: .
-    container_name: cofre-aes-frontend
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8096:80"
+      - "127.0.0.1:8097:80"
+    environment:
+      API_UPSTREAM: ${API_UPSTREAM:-http://host.docker.internal:8098}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    mem_limit: 64m
