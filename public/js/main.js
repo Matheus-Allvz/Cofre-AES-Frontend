@@ -1,5 +1,8 @@
 import { el, trocar } from './dom.js';
 import { detectarSuporte, derivarMasterKey, KDF_PADRAO } from './cripto.js';
+import { telaConvite } from './telas/convite.js';
+import { telaLogin } from './telas/login.js';
+import { telaConta } from './telas/conta.js';
 
 const app = document.getElementById('app');
 
@@ -23,15 +26,29 @@ function diagnostico() {
       botao.disabled = true;
       saida.textContent = 'Derivando chave…';
       await new Promise((ok) => setTimeout(ok, 50)); // deixa pintar o aviso (D7)
-      const t0 = performance.now();
-      const mk = await derivarMasterKey('diagnostico-local', crypto.getRandomValues(new Uint8Array(16)), KDF_PADRAO);
-      const ms = Math.round(performance.now() - t0);
-      mk.fill(0);
-      saida.textContent = `derivarMasterKey (Argon2id m=${KDF_PADRAO.m} t=${KDF_PADRAO.t} p=${KDF_PADRAO.p}): ${ms} ms`;
-      botao.disabled = false;
+      let mk;
+      try {
+        const t0 = performance.now();
+        mk = await derivarMasterKey('diagnostico-local', crypto.getRandomValues(new Uint8Array(16)), KDF_PADRAO);
+        const ms = Math.round(performance.now() - t0);
+        saida.textContent = `derivarMasterKey (Argon2id m=${KDF_PADRAO.m} t=${KDF_PADRAO.t} p=${KDF_PADRAO.p}): ${ms} ms`;
+      } catch {
+        saida.textContent = 'Falha ao derivar a chave neste navegador.';
+      } finally {
+        mk?.fill(0);
+        botao.disabled = false;
+      }
     },
   }, 'Medir derivarMasterKey');
   return el('section', { class: 'card' }, el('h2', {}, 'Diagnóstico'), botao, saida);
+}
+
+// Roteador por location.hash: #/convite/<token>, #/conta, resto → #/login.
+function rotear() {
+  const [rota, param] = location.hash.replace(/^#\/?/, '').split('/');
+  if (rota === 'convite' && param) return telaConvite(app, decodeURIComponent(param));
+  if (rota === 'conta') return telaConta(app);
+  return telaLogin(app);
 }
 
 async function iniciar() {
@@ -40,8 +57,12 @@ async function iniciar() {
       el('p', {}, 'Este navegador não oferece WebCrypto com X25519 ou WebAssembly. Atualize para Chrome 133+, Firefox 130+ ou Safari 17+.'));
     return;
   }
-  trocar(app, el('h1', {}, 'Cofre AES Empresarial'), await statusApi(),
-    new URLSearchParams(location.search).get('diag') === '1' ? diagnostico() : null);
+  if (new URLSearchParams(location.search).get('diag') === '1') {
+    trocar(app, el('h1', {}, 'Cofre AES Empresarial'), await statusApi(), diagnostico());
+    return;
+  }
+  window.addEventListener('hashchange', rotear);
+  rotear();
 }
 
 iniciar();
