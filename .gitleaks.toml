@@ -1,0 +1,8 @@
+# Regras padrão do gitleaks, exceto os vetores de teste: entradas fixas e fictícias
+# derivadas por test/vetores/gerar_vetores.py (sha256("vetor:<rótulo>")), sem valor real.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "vetores cruzados fictícios"
+paths = ['''^test/vetores/vetores\.json$''']
