@@ -5,6 +5,7 @@ test
 scripts
 docs
 *.md
+**/*.md
 package.json
 docker-compose.yml
 Dockerfile
