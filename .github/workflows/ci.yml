@@ -38,3 +38,27 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # O E2E roda contra o backend da branch empresarial (já mergeado). Em fase com os
+      # dois repos, o PR do FE fica vermelho aqui até o merge do PR do BE (ordem: BE primeiro).
+      - uses: actions/checkout@v4
+        with:
+          repository: Matheus-Allvz/Cofre-AES
+          ref: empresarial
+          path: backend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: bash scripts/e2e-backend.sh backend
+      - name: node --test test/e2e/
+        run: set -a; . ./.e2e.env; set +a; node --test test/e2e/
+      - name: Token de convite fora dos logs da API
+        run: |
+          set -a; . ./.e2e.env; set +a
+          ! docker compose -p cofre-e2e logs api | grep -qF "$E2E_CONVITE_OWNER"
+      - if: always()
+        run: docker compose -p cofre-e2e logs api | tail -n 50; docker compose -p cofre-e2e down -v

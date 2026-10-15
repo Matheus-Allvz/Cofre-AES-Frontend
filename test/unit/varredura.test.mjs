@@ -14,9 +14,11 @@ const arquivos = readdirSync(PUBLIC, { recursive: true })
 const PROIBIDOS = [
   /\binnerHTML\b/, /\bouterHTML\b/, /\binsertAdjacentHTML\b/, /\bdocument\.write/,
   /\beval\s*\(/, /\bnew\s+Function\b/, /\bMath\.random\b/,
+  // Chaves e sessão só em memória / cookie HttpOnly (ARQUITETURA §2, D15).
+  /\blocalStorage\b/, /\bsessionStorage\b/, /\bindexedDB\b/i, /\bdocument\.cookie\b/,
 ];
 
-test('public/ sem innerHTML, eval, new Function, Math.random e afins', () => {
+test('public/ sem innerHTML, eval, new Function, Math.random, storage e afins', () => {
   assert.ok(arquivos.some((f) => f.endsWith('cripto.js')), 'varredura encontrou os arquivos');
   const achados = [];
   for (const f of arquivos) {
