@@ -7,6 +7,12 @@
 // Segredo curto (< 16 chars: código TOTP, código de recuperação) só casa como token isolado:
 // os mesmos dígitos dentro de um UUID na rota não são vazamento.
 // Log sem nenhuma linha "requisicao" (vazio, projeto compose errado) sai com 3: nada foi verificado.
+//
+// NÃO detecta (limites conhecidos): segredo transformado (base64/hex/percent-encoding, caixa
+// trocada, escapes JSON além dos do próprio JSON.stringify), partido entre linhas ou campos,
+// truncado; segredo curto colado a letra, dígito ou hífen (ex.: dentro de um UUID, de
+// propósito); qualquer coisa que só apareça em "em" ou "duracao_ms" (removidos antes da
+// busca); segredos que não foram gravados em .e2e-sentinelas.txt pelo E2E.
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
