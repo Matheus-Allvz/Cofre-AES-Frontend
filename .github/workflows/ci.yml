@@ -60,5 +60,11 @@ jobs:
         run: |
           set -a; . ./.e2e.env; set +a
           ! docker compose -p cofre-e2e logs api | grep -qF "$E2E_CONVITE_OWNER"
+      # Segredos gerados no E2E (segredo TOTP, códigos TOTP e de recuperação, Recovery Keys,
+      # recup_auth, token de recuperação), um por linha, gravados por test/e2e/comum.mjs.
+      - name: Segredos de MFA e recuperação fora dos logs da API
+        # Sem os campos de número variável ("em", "duracao_ms"): um código TOTP de 6 dígitos
+        # coincidiria com os microssegundos do timestamp (ver scripts/segredos-nos-logs.mjs).
+        run: docker compose -p cofre-e2e logs --no-log-prefix api | node scripts/segredos-nos-logs.mjs .e2e-sentinelas.txt
       - if: always()
         run: docker compose -p cofre-e2e logs api | tail -n 50; docker compose -p cofre-e2e down -v

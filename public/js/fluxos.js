@@ -100,22 +100,93 @@ export async function montarTrocaSenha({ perfil, senhaAtual, senhaNova }) {
   }
 }
 
-/** Texto do kit de emergência (download .txt). */
+/** Confirmação da senha-mestra atual (ex.: desativar MFA): senha + perfil (GET /eu) → auth_hash. */
+export async function authHashDaSenha(perfil, senha) {
+  const { authHash } = await derivar(senha, c.deB64u(perfil.sal), perfil.kdf);
+  try {
+    return c.b64u(authHash);
+  } finally {
+    authHash.fill(0);
+  }
+}
+
+/** Kit digitado → { rk, recupAuth } para POST /recuperar/iniciar. O chamador repassa rk a montarConclusao. */
+export async function prepararRecuperacao(textoRecoveryKey) {
+  const rk = c.lerRecoveryKey(textoRecoveryKey);
+  const recupAuth = await c.derivarRecupAuth(rk);
+  try {
+    return { rk, recupAuth: c.b64u(recupAuth) };
+  } finally {
+    recupAuth.fill(0);
+  }
+}
+
+/**
+ * Recuperação (RF-U06): resposta de /recuperar/iniciar + Recovery Key antiga + nova senha →
+ * corpo de /recuperar/concluir e o kit NOVO. A userKey é re-envelopada pela nova senha e pelo novo kit;
+ * a chave privada (cifrada pela userKey) não muda. Zera a Recovery Key antiga.
+ */
+export async function montarConclusao({ resp, rk, senhaNova }) {
+  if (!c.validarSenhaMestra(senhaNova)) throw new Error('senha_curta');
+  const id = resp.usuario_id;
+  const rkNova = c.gerarRecoveryKey();
+  let userKey, nova, recupAuth;
+  try {
+    userKey = await c.decifrarV1(await c.derivarRecupKek(rk), resp.chave_usuario_recup_cif, c.aad.userKeyRecup(id))
+      .catch(() => { throw new Error('kit_invalido'); });
+    const sal = sal16();
+    nova = await derivar(senhaNova, sal, c.KDF_PADRAO);
+    recupAuth = await c.derivarRecupAuth(rkNova);
+    const corpo = {
+      token: resp.token,
+      kdf: { ...c.KDF_PADRAO },
+      sal: c.b64u(sal),
+      auth_hash: c.b64u(nova.authHash),
+      chave_usuario_cif: await c.cifrarV1(nova.kek, userKey, c.aad.userKey(id)),
+      chave_usuario_recup_cif: await c.cifrarV1(await c.derivarRecupKek(rkNova), userKey, c.aad.userKeyRecup(id)),
+      recup_auth: c.b64u(recupAuth),
+    };
+    return { corpo, recoveryKey: c.formatarRecoveryKey(rkNova) };
+  } finally {
+    userKey?.fill(0);
+    nova?.authHash.fill(0);
+    recupAuth?.fill(0);
+    rk.fill(0);
+    rkNova.fill(0);
+  }
+}
+
+/** Texto do kit de emergência (download .txt). Organização e fingerprint são opcionais (recuperação). */
 export function textoKit({ orgNome, email, recoveryKey, fingerprint }) {
   return [
     'COFRE AES EMPRESARIAL — KIT DE EMERGÊNCIA',
     '',
-    `Organização: ${orgNome}`,
+    ...(orgNome ? [`Organização: ${orgNome}`] : []),
     `Conta: ${email}`,
     `Gerado em: ${new Date().toISOString().slice(0, 10)}`,
     '',
     'Recovery Key:',
     recoveryKey,
     '',
-    `Fingerprint da sua chave pública: ${fingerprint}`,
-    '',
+    ...(fingerprint ? [`Fingerprint da sua chave pública: ${fingerprint}`, ''] : []),
     'Guarde este arquivo fora do computador (impresso ou em local seguro).',
     'Sem a senha-mestra e sem este kit, o acesso à conta não pode ser recuperado.',
+    '',
+  ].join('\n');
+}
+
+/** Texto dos códigos de recuperação do MFA (download .txt). */
+export function textoCodigosMfa({ email, codigos }) {
+  return [
+    'COFRE AES EMPRESARIAL — CÓDIGOS DE RECUPERAÇÃO DO MFA',
+    '',
+    `Conta: ${email}`,
+    `Gerados em: ${new Date().toISOString().slice(0, 10)}`,
+    '',
+    'Cada código vale uma vez, no lugar do código do app autenticador:',
+    ...codigos,
+    '',
+    'Guarde fora do computador. Configurar o MFA de novo gera códigos novos e invalida estes.',
     '',
   ].join('\n');
 }

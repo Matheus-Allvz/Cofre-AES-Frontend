@@ -2,7 +2,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as c from '../../public/js/cripto.js';
-import { abrirChaves, montarAceite, montarTrocaSenha, prepararLogin, textoKit } from '../../public/js/fluxos.js';
+import {
+  abrirChaves, authHashDaSenha, montarAceite, montarConclusao, montarTrocaSenha, prepararLogin, prepararRecuperacao, textoCodigosMfa, textoKit,
+} from '../../public/js/fluxos.js';
+import { segundoFator } from '../../public/js/telas/login.js';
 import { api, ErroApi, mensagem } from '../../public/js/api.js';
 
 const ID = '0b7c3f4e-3d2a-4c1b-9a8e-1f2e3d4c5b6a';
@@ -90,4 +93,67 @@ test('api: X-Cofre em não-GET, same-origin, erro {"erro"} vira ErroApi', async 
   assert.equal(chamadas[1].op.headers['X-Cofre'], '1');
   assert.equal(chamadas[2].op.headers['Content-Type'], 'application/json');
   assert.ok(chamadas.every(({ op }) => op.credentials === 'same-origin'));
+});
+
+test('recuperação: kit abre a userKey, nova senha e kit novo abrem a mesma privada; kit antigo é zerado', async () => {
+  const perfil = perfilDe(aceite.corpo);
+  const { rk, recupAuth } = await prepararRecuperacao(aceite.recoveryKey.toLowerCase().replaceAll('-', ''));
+  assert.equal(recupAuth, aceite.corpo.recup_auth);
+  const resp = { token: 'tok', usuario_id: ID, chave_usuario_recup_cif: aceite.corpo.chave_usuario_recup_cif };
+  await assert.rejects(montarConclusao({ resp, rk: rk.slice(), senhaNova: 'curta' }), /senha_curta/);
+  const outro = c.gerarRecoveryKey();
+  await assert.rejects(montarConclusao({ resp, rk: outro, senhaNova: 'nova senha-mestra longa' }), /kit_invalido/);
+
+  const { corpo, recoveryKey } = await montarConclusao({ resp, rk, senhaNova: 'nova senha-mestra longa' });
+  assert.ok(rk.every((b) => b === 0), 'Recovery Key antiga zerada');
+  assert.equal(corpo.token, 'tok');
+  assert.deepEqual(corpo.kdf, { tipo: 'argon2id', m: 65536, t: 3, p: 1 });
+  for (const k of ['chave_usuario_cif', 'chave_usuario_recup_cif']) assert.match(corpo[k], /^v1\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{22,}$/);
+  assert.notEqual(recoveryKey, aceite.recoveryKey);
+  assert.notEqual(corpo.recup_auth, aceite.corpo.recup_auth);
+
+  const novo = { ...perfil, sal: corpo.sal, chave_usuario_cif: corpo.chave_usuario_cif };
+  const login = await prepararLogin('a@b', 'nova senha-mestra longa', novo);
+  assert.equal(login.corpo.auth_hash, corpo.auth_hash);
+  await privadaAbre(await abrirChaves(novo, login.kek)); // chave_privada_cif não mudou
+  const rk2 = c.lerRecoveryKey(recoveryKey);
+  assert.equal((await prepararRecuperacao(recoveryKey)).recupAuth, corpo.recup_auth);
+  const userKey = await c.decifrarV1(await c.derivarRecupKek(rk2), corpo.chave_usuario_recup_cif, c.aad.userKeyRecup(ID));
+  assert.equal(userKey.length, 32);
+  await assert.rejects(prepararRecuperacao('AAAA-BBBB'), /recovery_key_invalida/);
+});
+
+test('authHashDaSenha confere com o authHash do login', async () => {
+  const perfil = perfilDe(aceite.corpo);
+  assert.equal(await authHashDaSenha(perfil, SENHA), aceite.corpo.auth_hash);
+});
+
+test('textos de kit sem org/fingerprint e dos códigos de MFA', () => {
+  const kit = textoKit({ email: 'e@x', recoveryKey: 'RK' });
+  assert.ok(!kit.includes('undefined') && !kit.includes('Fingerprint') && !kit.includes('Organização'));
+  const cods = textoCodigosMfa({ email: 'e@x', codigos: ['AAAA-BBBB', 'CCCC-DDDD'] });
+  assert.ok(cods.includes('AAAA-BBBB\nCCCC-DDDD\n'));
+});
+
+test('segundoFator: 6 dígitos = totp; resto = código de recuperação; vazio = nada', () => {
+  assert.deepEqual(segundoFator(' 123456 '), { totp: '123456' });
+  assert.deepEqual(segundoFator('ABCD-EFGH'), { codigo_recuperacao: 'ABCD-EFGH' });
+  assert.deepEqual(segundoFator(''), {});
+});
+
+test('api: 503 (com ou sem corpo) vira mensagem de servidor ocupado; keepalive repassado', async (t) => {
+  const chamadas = [];
+  t.mock.method(globalThis, 'fetch', async (url, op) => {
+    chamadas.push(op);
+    if (url.endsWith('/a')) return new Response('{"erro":"ocupado"}', { status: 503 });
+    if (url.endsWith('/b')) return new Response('<html>', { status: 503 });
+    return new Response(null, { status: 204 });
+  });
+  for (const caminho of ['/a', '/b']) {
+    const e = await api('POST', caminho, {}).catch((x) => x);
+    assert.equal(e.codigo, 'ocupado');
+    assert.equal(mensagem(e), 'Servidor ocupado, tente em instantes.');
+  }
+  await api('POST', '/logout', undefined, { keepalive: true });
+  assert.deepEqual(chamadas.map((op) => op.keepalive), [false, false, true]);
 });
