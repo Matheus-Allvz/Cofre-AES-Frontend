@@ -47,6 +47,7 @@ export async function telaConta(app) {
     u.estado === 'aceito' ? el('p', { class: 'muted' }, 'Aguardando o administrador conferir seu fingerprint para ativar a conta.') : null,
     el('p', { class: 'muted' }, 'Seu fingerprint (dite ao administrador quando ele pedir, por voz ou chat):'),
     el('div', { class: 'id-display' }, el('code', {}, await fingerprint(estado.publica))),
+    u.estado === 'ativo' ? el('p', {}, el('a', { href: '#/cofre' }, 'Cofre →')) : null,
     gestor ? el('p', {}, el('a', { href: '#/pessoas' }, 'Pessoas da organização →')) : null,
     el('button', { type: 'button', class: 'btn btn-secondary', onclick: () => sair() }, 'Sair'));
 

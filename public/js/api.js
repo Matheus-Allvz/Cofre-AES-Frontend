@@ -26,6 +26,17 @@ const MENSAGENS = {
   fingerprint_divergente: 'O fingerprint não confere com a chave guardada no servidor. Não ative esta conta.',
   ultimo_owner: 'A organização precisa de pelo menos um owner ativo.',
   auto_acao: 'Você não pode fazer isto com a própria conta.',
+  conflito_versao: 'O item foi alterado em outro lugar. O cofre foi recarregado: refaça a alteração.',
+  chave_ver_desatualizada: 'A chave da coleção mudou. O cofre foi recarregado: refaça a alteração.',
+  colecao_nao_vazia: 'A coleção só pode ser excluída vazia (inclusive a lixeira).',
+  envelopes_incompletos: 'Faltou dar acesso a algum owner ativo. Recarregue e tente de novo.',
+  destinatario_invalido: 'Alguma pessoa da lista não está ativa. Recarregue e tente de novo.',
+  envelopes_duplicados: 'Pessoa repetida na lista de acesso.',
+  blob_grande: 'Conteúdo grande demais (máximo 64 KiB por campo cifrado).',
+  id_em_uso: 'Identificador já usado. Tente de novo.',
+  item_excluido: 'Este item está na lixeira.',
+  fora_da_lixeira: 'Este item não está na lixeira.',
+  versao_requerida: 'Versão do item ausente. Recarregue o cofre.',
 };
 
 export class ErroApi extends Error {
@@ -46,10 +57,11 @@ const PADRAO = { 422: 'dados_invalidos', 503: 'ocupado' };
 
 /**
  * api('POST', '/login', {...}) → JSON (ou null em 204); lança ErroApi com o código {"erro"}.
- * `keepalive` deixa a requisição terminar com a aba fechando (logout no pagehide).
+ * `keepalive` deixa a requisição terminar com a aba fechando (logout no pagehide); `headers`
+ * extras (ex.: If-Match do PUT de item).
  */
-export async function api(metodo, caminho, corpo, { keepalive = false } = {}) {
-  const headers = {};
+export async function api(metodo, caminho, corpo, { keepalive = false, headers: extras = {} } = {}) {
+  const headers = { ...extras };
   if (metodo !== 'GET') headers['X-Cofre'] = '1'; // D15: exigido em não-GET autenticado
   if (corpo !== undefined) headers['Content-Type'] = 'application/json';
   const r = await fetch(`/api/v1${caminho}`, {

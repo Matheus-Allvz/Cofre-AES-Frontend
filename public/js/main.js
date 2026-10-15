@@ -5,6 +5,7 @@ import { telaLogin } from './telas/login.js';
 import { telaConta } from './telas/conta.js';
 import { telaRecuperar } from './telas/recuperar.js';
 import { telaPessoas } from './telas/pessoas.js';
+import { telaCofre } from './telas/cofre.js';
 import { lerRota } from './rota.js';
 
 const app = document.getElementById('app');
@@ -46,13 +47,14 @@ function diagnostico() {
   return el('section', { class: 'card' }, el('h2', {}, 'Diagnóstico'), botao, saida);
 }
 
-// Roteador por location.hash: #/convite/<token>, #/conta, #/pessoas, #/recuperar, resto → #/login.
+// Roteador por location.hash: #/convite/<token>, #/cofre, #/conta, #/pessoas, #/recuperar, resto → #/login.
 function rotear() {
   const { rota, param } = lerRota(location.hash);
   if (rota === 'convite') {
     if (param) return telaConvite(app, param);
     return trocar(app, el('h1', {}, 'Convite'), el('p', { class: 'error-msg', role: 'alert' }, 'Convite inválido. Confira o link recebido.'));
   }
+  if (rota === 'cofre') return telaCofre(app);
   if (rota === 'conta') return telaConta(app);
   if (rota === 'pessoas') return telaPessoas(app);
   if (rota === 'recuperar') return telaRecuperar(app);
