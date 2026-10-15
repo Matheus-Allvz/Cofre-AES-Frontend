@@ -93,6 +93,8 @@ test('api: X-Cofre em não-GET, same-origin, erro {"erro"} vira ErroApi', async 
   assert.equal(chamadas[1].op.headers['X-Cofre'], '1');
   assert.equal(chamadas[2].op.headers['Content-Type'], 'application/json');
   assert.ok(chamadas.every(({ op }) => op.credentials === 'same-origin'));
+  await api('PUT', '/itens/x', { a: 1 }, { headers: { 'If-Match': '3' } });
+  assert.deepEqual(chamadas[3].op.headers, { 'If-Match': '3', 'X-Cofre': '1', 'Content-Type': 'application/json' });
 });
 
 test('recuperação: kit abre a userKey, nova senha e kit novo abrem a mesma privada; kit antigo é zerado', async () => {
