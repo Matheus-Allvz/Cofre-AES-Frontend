@@ -190,3 +190,22 @@ export function textoCodigosMfa({ email, codigos }) {
     '',
   ].join('\n');
 }
+
+// ---------- Membros (Fase 5) ----------
+
+/**
+ * Fingerprint de um membro de GET /membros, calculado AQUI a partir da chave pública (32 B).
+ * Nunca usa `fingerprint_confirmado` do servidor: é o servidor que a conferência protege. null = sem chave.
+ */
+export async function fingerprintDoMembro(membro) {
+  if (!membro.chave_publica) return null;
+  const pub = c.deB64u(membro.chave_publica);
+  if (pub.length !== 32) throw new Error('chave_publica_invalida');
+  return c.fingerprint(pub);
+}
+
+const soHex = (s) => String(s).replace(/\s+/g, '').toUpperCase();
+
+/** O fingerprint ditado pela pessoa (voz/chat) confere com o calculado? Ignora espaços e caixa. */
+export const fingerprintConfere = (ditado, calculado) =>
+  typeof calculado === 'string' && soHex(calculado).length === 32 && soHex(ditado) === soHex(calculado);
