@@ -99,7 +99,7 @@ async function linhaMembro(m, eu, aviso, recarregar) {
       `Suspender ${m.email}? As sessões dela caem na hora.`)));
   }
   if (m.estado === 'suspenso') acoes.append(botao('Reativar', 'btn-secondary', () => agir('POST', `${url}/reativar`)));
-  if (['aceito', 'ativo', 'suspenso'].includes(m.estado)) {
+  if (['ativo', 'suspenso'].includes(m.estado)) { // aceito: confirmar primeiro
     const outro = m.papel === 'admin' ? 'member' : 'admin'; // owner só é rebaixado (promoção: Fase 7)
     acoes.append(botao(`Tornar ${outro}`, 'btn-secondary', () => agir('PUT', `${url}/papel`, { papel: outro },
       `Mudar o papel de ${m.email} para ${outro}?`)));
