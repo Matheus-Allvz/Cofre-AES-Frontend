@@ -20,6 +20,12 @@ const MENSAGENS = {
   politica_mfa: 'A política da organização não permite desativar o MFA.',
   token_invalido: 'A recuperação expirou ou já foi usada. Comece de novo.',
   nao_encontrado: 'Não encontrado.',
+  email_em_uso: 'Este e-mail já tem conta ou convite pendente.',
+  convite_usado: 'Este convite já foi usado.',
+  estado_invalido: 'Ação não vale para o estado atual desta pessoa. Recarregue a lista.',
+  fingerprint_divergente: 'O fingerprint não confere com a chave guardada no servidor. Não ative esta conta.',
+  ultimo_owner: 'A organização precisa de pelo menos um owner ativo.',
+  auto_acao: 'Você não pode fazer isto com a própria conta.',
 };
 
 export class ErroApi extends Error {
