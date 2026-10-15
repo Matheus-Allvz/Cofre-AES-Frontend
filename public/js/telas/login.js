@@ -45,7 +45,7 @@ export function telaLogin(app) {
       const resp = await api('POST', '/login', { ...derivado.corpo, ...segundoFator(codigo.value) });
       iniciarSessao(resp, await abrirChaves(resp, derivado.kek));
       derivado = null;
-      location.hash = '#/conta';
+      location.hash = resp.usuario.estado === 'ativo' && !resp.mfa_pendente ? '#/cofre' : '#/conta';
     } catch (e) {
       aviso.className = 'error-msg';
       aviso.textContent = e instanceof ErroApi ? mensagem(e) : 'Não foi possível abrir as chaves da conta.';
