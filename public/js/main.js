@@ -3,6 +3,7 @@ import { detectarSuporte, derivarMasterKey, KDF_PADRAO } from './cripto.js';
 import { telaConvite } from './telas/convite.js';
 import { telaLogin } from './telas/login.js';
 import { telaConta } from './telas/conta.js';
+import { telaRecuperar } from './telas/recuperar.js';
 import { lerRota } from './rota.js';
 
 const app = document.getElementById('app');
@@ -44,7 +45,7 @@ function diagnostico() {
   return el('section', { class: 'card' }, el('h2', {}, 'Diagnóstico'), botao, saida);
 }
 
-// Roteador por location.hash: #/convite/<token>, #/conta, resto → #/login.
+// Roteador por location.hash: #/convite/<token>, #/conta, #/recuperar, resto → #/login.
 function rotear() {
   const { rota, param } = lerRota(location.hash);
   if (rota === 'convite') {
@@ -52,6 +53,7 @@ function rotear() {
     return trocar(app, el('h1', {}, 'Convite'), el('p', { class: 'error-msg', role: 'alert' }, 'Convite inválido. Confira o link recebido.'));
   }
   if (rota === 'conta') return telaConta(app);
+  if (rota === 'recuperar') return telaRecuperar(app);
   return telaLogin(app);
 }
 

@@ -1,36 +1,65 @@
-// #/login: prelogin → KDF (aviso "Derivando chave…") → login → abre userKey e chave privada.
+// #/login: prelogin → KDF (aviso "Derivando chave…") → login [→ código MFA] → abre userKey e chave privada.
 import { api, ErroApi, mensagem } from '../api.js';
 import { el, trocar } from '../dom.js';
 import { definir, estado } from '../estado.js';
 import { abrirChaves, prepararLogin } from '../fluxos.js';
+import { iniciarSessao } from '../sessao.js';
 
 const pintar = () => new Promise((ok) => setTimeout(ok, 50)); // D7
+
+/** 6 dígitos = TOTP do app; o resto vai como código de recuperação. */
+export function segundoFator(codigo) {
+  const v = codigo.trim();
+  if (!v) return {};
+  return /^\d{6}$/.test(v) ? { totp: v } : { codigo_recuperacao: v };
+}
 
 export function telaLogin(app) {
   const email = el('input', { type: 'email', required: true, autocomplete: 'username' });
   const senha = el('input', { type: 'password', required: true, autocomplete: 'current-password' });
+  const codigo = el('input', { inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 16 });
+  const campoCodigo = el('label', { hidden: true }, 'Código do app autenticador (ou código de recuperação)', codigo);
   const aviso = el('p', { class: estado.aviso ? 'ok' : 'muted', role: 'status' }, estado.aviso);
   const botao = el('button', { type: 'submit', class: 'btn btn-primary' }, 'Entrar');
   definir({ aviso: null });
+  let derivado = null; // { corpo, kek } entre a senha e o código do MFA
+
+  function recomecar() {
+    derivado = null;
+    email.disabled = senha.disabled = false;
+    campoCodigo.hidden = true;
+    codigo.value = '';
+  }
 
   async function entrar(ev) {
     ev.preventDefault();
     botao.disabled = true;
     aviso.className = 'muted';
-    aviso.textContent = 'Derivando chave…';
-    await pintar();
     try {
-      const pre = await api('POST', '/prelogin', { email: email.value });
-      const { corpo, kek } = await prepararLogin(email.value, senha.value, pre);
-      const resp = await api('POST', '/login', corpo);
-      definir({ usuario: resp.usuario, ...(await abrirChaves(resp, kek)) });
+      if (!derivado) {
+        aviso.textContent = 'Derivando chave…';
+        await pintar();
+        const pre = await api('POST', '/prelogin', { email: email.value });
+        derivado = await prepararLogin(email.value, senha.value, pre);
+      }
+      const resp = await api('POST', '/login', { ...derivado.corpo, ...segundoFator(codigo.value) });
+      iniciarSessao(resp, await abrirChaves(resp, derivado.kek));
+      derivado = null;
       location.hash = '#/conta';
     } catch (e) {
       aviso.className = 'error-msg';
       aviso.textContent = e instanceof ErroApi ? mensagem(e) : 'Não foi possível abrir as chaves da conta.';
-      botao.disabled = false;
+      if (e instanceof ErroApi && ['mfa_requerido', 'mfa_invalido'].includes(e.codigo)) {
+        email.disabled = senha.disabled = true; // a senha já foi derivada; só falta o código
+        campoCodigo.hidden = false;
+        codigo.value = '';
+        codigo.focus();
+      } else {
+        recomecar();
+      }
     } finally {
       senha.value = '';
+      botao.disabled = false;
     }
   }
 
@@ -38,6 +67,7 @@ export function telaLogin(app) {
     app,
     el('h1', {}, 'Entrar'),
     el('form', { class: 'form', onsubmit: entrar },
-      el('label', {}, 'E-mail', email), el('label', {}, 'Senha-mestra', senha), botao, aviso),
+      el('label', {}, 'E-mail', email), el('label', {}, 'Senha-mestra', senha), campoCodigo, botao, aviso),
+    el('p', {}, el('a', { href: '#/recuperar' }, 'Esqueci a senha-mestra: usar o kit de emergência')),
   );
 }
