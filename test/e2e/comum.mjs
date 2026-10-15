@@ -23,24 +23,33 @@ export function navegador() {
     if (metodo !== 'GET') headers['X-Cofre'] = '1';
     if (corpo !== undefined) headers['Content-Type'] = 'application/json';
     if (cookie) headers.Cookie = cookie;
-    const r = await fetch(`${API}/api/v1${caminho}`, {
+    const pedir = () => fetch(`${API}/api/v1${caminho}`, {
       method: metodo, headers, body: corpo === undefined ? undefined : JSON.stringify(corpo),
     });
+    let r = await pedir();
+    // Todos os arquivos do E2E saem do mesmo IP: o limite de 20/min por IP das rotas públicas
+    // (RNF-01) é esperado aqui, não falha. Espera a janela (≤ 60 s) e repete uma vez; bloqueio
+    // de conta (15 min) não é repetido.
+    const espera = Number(r.headers.get('retry-after'));
+    if (r.status === 429 && espera > 0 && espera <= 60) {
+      await new Promise((ok) => setTimeout(ok, espera * 1000 + 200));
+      r = await pedir();
+    }
     const setCookie = r.headers.getSetCookie().find((s) => s.startsWith('sessao='));
     if (setCookie) cookie = setCookie.split(';')[0];
     return { status: r.status, dados: r.status === 204 ? null : await r.json().catch(() => null), setCookie };
   };
 }
 
-/** Aceita o convite como o browser; devolve também a Recovery Key do kit. */
+/** Aceita o convite como o browser; devolve também a Recovery Key do kit e o próprio fingerprint. */
 export async function aceitar(nav, token, senha, nome) {
   const consulta = await nav('POST', '/convites/consultar', { token });
   assert.equal(consulta.status, 200);
-  const { corpo, recoveryKey } = await montarAceite({ token, nome, senha, usuarioId: consulta.dados.usuario_id });
+  const { corpo, recoveryKey, fingerprint } = await montarAceite({ token, nome, senha, usuarioId: consulta.dados.usuario_id });
   const r = await nav('POST', '/convites/aceitar', corpo);
   assert.equal(r.status, 201, JSON.stringify(r.dados));
   sentinela(token, recoveryKey, corpo.recup_auth);
-  return { consulta: consulta.dados, aceite: r.dados, recoveryKey };
+  return { consulta: consulta.dados, aceite: r.dados, recoveryKey, fingerprint };
 }
 
 /** prelogin → KDF → login (com segundo fator opcional: { totp } ou { codigo_recuperacao }). */
