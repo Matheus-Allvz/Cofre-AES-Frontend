@@ -37,6 +37,11 @@ const MENSAGENS = {
   item_excluido: 'Este item está na lixeira.',
   fora_da_lixeira: 'Este item não está na lixeira.',
   versao_requerida: 'Versão do item ausente. Recarregue o cofre.',
+  ja_membro: 'Esta pessoa já tem acesso à coleção.',
+  owner_gerencia: 'Owner sempre gerencia todas as coleções: não dá para reduzir nem tirar o acesso dele.',
+  ultimo_gerente: 'A coleção precisa de pelo menos uma pessoa com permissão de gerenciar.',
+  rotacao_incompleta: 'A coleção mudou durante a rotação (membros ou itens).',
+  corpo_grande: 'Dados grandes demais para uma requisição.',
 };
 
 export class ErroApi extends Error {

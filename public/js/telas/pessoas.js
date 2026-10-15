@@ -1,6 +1,7 @@
 // #/pessoas (owner/admin): membros da organização, convite, confirmação por fingerprint,
-// suspender/reativar, papel admin↔member e remoção.
+// suspender/reativar, papel, promoção a owner (Fase 7) e remoção com relatório de offboarding.
 import { api, ErroApi, mensagem } from '../api.js';
+import * as cofre from '../cofre.js';
 import { el, trocar } from '../dom.js';
 import { estado } from '../estado.js';
 import { fingerprintConfere, fingerprintDoMembro } from '../fluxos.js';
@@ -28,9 +29,11 @@ export async function telaPessoas(app) {
     return falhou(aviso, e);
   }
   const recarregar = () => telaPessoas(app);
-  const linhas = await Promise.all(membros.map((m) => linhaMembro(m, eu, aviso, recarregar)));
+  const relatorio = el('div', { id: 'relatorio-saida' });
+  const linhas = await Promise.all(membros.map((m) => linhaMembro(m, eu, aviso, recarregar, relatorio)));
   trocar(app, el('h1', {}, 'Pessoas'), voltar,
     secaoConvite(recarregar),
+    relatorio,
     el('section', { class: 'card' }, el('h2', {}, 'Membros'), aviso, el('ul', { class: 'secret-list' }, ...linhas)));
 }
 
@@ -69,7 +72,41 @@ function secaoConvite(recarregar) {
 
 // ---------- Um membro ----------
 
-async function linhaMembro(m, eu, aviso, recarregar) {
+/**
+ * Envelopes `gerenciar` de todas as coleções que eu (owner) abro para `alvo` (D13): promoção a
+ * owner e reativação de owner. As collectionKeys são reabertas do sync e descartadas depois.
+ */
+async function envelopesOwner(alvo) {
+  const meu = { usuario: estado.usuario, privada: estado.privada, publica: estado.publica };
+  const { colecoes } = await cofre.abrirSync(await api('GET', '/sync'), meu);
+  return cofre.montarEnvelopesOwner({ eu: meu, colecoes: colecoes.values(), alvo });
+}
+
+function falhaEnvelopes(aviso, e) {
+  if (e instanceof ErroApi) return falhou(aviso, e);
+  aviso.className = 'error-msg';
+  aviso.textContent = {
+    chave_publica_divergente: 'A chave pública desta pessoa não confere com o fingerprint confirmado. Não continue.',
+    fingerprint_nao_confirmado: 'Esta pessoa ainda não teve o fingerprint confirmado.',
+    colecao_ilegivel: 'Alguma coleção não abre neste navegador (possível adulteração): não dá para entregar a chave dela.',
+  }[e.message] ?? 'Não foi possível preparar os acessos das coleções.';
+}
+
+/** RF-U03: o que a pessoa removida alcançava; nomes vêm do cofre aberto quando possível. */
+function mostrarRelatorio(alvo, m, relatorio) {
+  const nomes = estado.cofre?.colecoes;
+  const itens = relatorio.reduce((n, r) => n + r.itens.length, 0);
+  trocar(alvo, el('section', { class: 'card' },
+    el('h2', {}, `Relatório de saída: ${m.email}`),
+    el('p', {}, relatorio.length
+      ? `Alcançava ${relatorio.length} coleção(ões) e ${itens} item(ns), inclusive lixeira. Elas ficaram com rotação pendente e os itens em "Senhas a trocar" no Cofre.`
+      : 'Não alcançava nenhuma coleção.'),
+    relatorio.length ? el('ul', {}, ...relatorio.map((r) => el('li', {},
+      `${nomes?.get(r.colecao_id)?.nome ?? r.colecao_id}: ${r.itens.length} item(ns)`))) : null,
+    el('p', { class: 'muted' }, 'Quem gerencia cada coleção vê o aviso de rotação ao abrir o Cofre.')));
+}
+
+async function linhaMembro(m, eu, aviso, recarregar, relatorio) {
   const souEu = m.id === eu.id;
   const podeMexer = !souEu && (m.papel !== 'owner' || eu.papel === 'owner');
   const acoes = el('div', { class: 'secret-item-actions' });
@@ -98,14 +135,42 @@ async function linhaMembro(m, eu, aviso, recarregar) {
     acoes.append(botao('Suspender', 'btn-secondary', () => agir('POST', `${url}/suspender`, undefined,
       `Suspender ${m.email}? As sessões dela caem na hora.`)));
   }
-  if (m.estado === 'suspenso') acoes.append(botao('Reativar', 'btn-secondary', () => agir('POST', `${url}/reativar`)));
+  if (m.estado === 'suspenso') {
+    acoes.append(botao('Reativar', 'btn-secondary', async () => {
+      // Owner reativado precisa da chave das coleções criadas enquanto estava suspenso (D13).
+      if (m.papel !== 'owner') return agir('POST', `${url}/reativar`);
+      try {
+        await agir('POST', `${url}/reativar`, { envelopes: await envelopesOwner(m) });
+      } catch (e) {
+        falhaEnvelopes(aviso, e);
+      }
+    }));
+  }
+  if (m.estado === 'ativo' && m.papel !== 'owner' && eu.papel === 'owner') {
+    acoes.append(botao('Tornar owner', 'btn-secondary', async () => {
+      if (!window.confirm(`Tornar ${m.email} owner? Owner recebe acesso de gerência a TODAS as coleções.`)) return;
+      try {
+        await agir('PUT', `${url}/papel`, { papel: 'owner', envelopes: await envelopesOwner(m) });
+      } catch (e) {
+        falhaEnvelopes(aviso, e);
+      }
+    }));
+  }
   if (['ativo', 'suspenso'].includes(m.estado)) { // aceito: confirmar primeiro
-    const outro = m.papel === 'admin' ? 'member' : 'admin'; // owner só é rebaixado (promoção: Fase 7)
+    const outro = m.papel === 'admin' ? 'member' : 'admin'; // owner é rebaixado a admin; promoção acima
     acoes.append(botao(`Tornar ${outro}`, 'btn-secondary', () => agir('PUT', `${url}/papel`, { papel: outro },
       `Mudar o papel de ${m.email} para ${outro}?`)));
   }
-  acoes.append(botao('Remover', 'btn-danger', () => agir('DELETE', url, undefined,
-    `Remover ${m.email}? O acesso é cortado e o nome/e-mail são anonimizados. Não dá para desfazer.`)));
+  acoes.append(botao('Remover', 'btn-danger', async () => {
+    if (!window.confirm(`Remover ${m.email}? O acesso é cortado, as coleções dela pedem rotação e o nome/e-mail são anonimizados. Não dá para desfazer.`)) return;
+    try {
+      const r = await api('DELETE', url);
+      await recarregar();
+      mostrarRelatorio(document.getElementById('relatorio-saida') ?? relatorio, m, r.relatorio);
+    } catch (e) {
+      falhou(aviso, e);
+    }
+  }));
   return li;
 }
 
