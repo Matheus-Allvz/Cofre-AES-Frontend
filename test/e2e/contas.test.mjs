@@ -5,13 +5,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { montarTrocaSenha } from '../../public/js/fluxos.js';
 import {
-  API, CONVITE, EMAIL_OWNER, aceitar, compartilhado, configurarMfa, confereChaves, entrar, navegador, opcoes,
+  API, CONVITE, EMAIL_OWNER, RAND, aceitar, compartilhado, configurarMfa, confereChaves, entrar, navegador, opcoes,
 } from './comum.mjs';
 
 if (!API) console.warn('[FE-E2E] pulado: E2E_API ausente');
 
-const SENHA_OWNER = 'senha-mestra do owner (e2e)';
-const SENHA_NOVA = 'nova senha-mestra do owner (e2e)';
+// Sentinelas (RNF-C01): nenhuma das duas pode aparecer no banco nem nos logs (cofre.test.mjs).
+export const SENHA_OWNER = `SENT-MESTRA-${RAND} do owner`;
+export const SENHA_NOVA = `SENT-MESTRA-${RAND} nova do owner`;
 const EMAIL_MEMBER = 'member@e2e.invalid';
 const SENHA_MEMBER = 'senha-mestra do member (e2e)';
 

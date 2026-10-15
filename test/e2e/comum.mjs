@@ -1,7 +1,7 @@
 // Apoio do E2E (não é teste): "navegador" com cookie, fluxos de conta e TOTP gerado no Node
 // (o papel do app autenticador). Estado compartilhado entre os arquivos, que rodam em ordem alfabética.
 import assert from 'node:assert/strict';
-import { createHmac } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import * as c from '../../public/js/cripto.js';
 import { abrirChaves, montarAceite, prepararLogin } from '../../public/js/fluxos.js';
@@ -9,6 +9,10 @@ import { abrirChaves, montarAceite, prepararLogin } from '../../public/js/fluxos
 export const { E2E_API: API, E2E_CONVITE_OWNER: CONVITE, E2E_EMAIL_OWNER: EMAIL_OWNER = 'owner@e2e.invalid' } = process.env;
 export const opcoes = { skip: API ? false : 'E2E_API ausente: rode scripts/e2e-backend.sh e carregue .e2e.env' };
 export const compartilhado = {};
+
+// RNF-C01: sufixo aleatório dos sentinelas desta execução (SENT-MESTRA-<rand>, SENT-SENHA-<rand>…),
+// procurados no pg_dump e nos logs da API pelo cofre.test.mjs.
+export const RAND = randomBytes(6).toString('hex');
 
 // Segredos gerados no E2E (base32, códigos, tokens): o CI confere que nenhum aparece nos logs da API.
 const SENTINELAS = new URL('../../.e2e-sentinelas.txt', import.meta.url);
@@ -18,8 +22,8 @@ export const sentinela = (...valores) => appendFileSync(SENTINELAS, valores.map(
 /** "Navegador" mínimo: cookie `sessao` gerenciado à mão; X-Cofre em não-GET, como api.js. */
 export function navegador() {
   let cookie = null;
-  return async (metodo, caminho, corpo) => {
-    const headers = {};
+  return async (metodo, caminho, corpo, extras = {}) => {
+    const headers = { ...extras };
     if (metodo !== 'GET') headers['X-Cofre'] = '1';
     if (corpo !== undefined) headers['Content-Type'] = 'application/json';
     if (cookie) headers.Cookie = cookie;
