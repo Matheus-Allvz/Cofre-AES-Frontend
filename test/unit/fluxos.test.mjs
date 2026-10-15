@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as c from '../../public/js/cripto.js';
 import {
-  abrirChaves, authHashDaSenha, montarAceite, montarConclusao, montarTrocaSenha, prepararLogin, prepararRecuperacao, textoCodigosMfa, textoKit,
+  abrirChaves, authHashDaSenha, fingerprintConfere, fingerprintDoMembro, montarAceite, montarConclusao, montarTrocaSenha, prepararLogin, prepararRecuperacao, textoCodigosMfa, textoKit,
 } from '../../public/js/fluxos.js';
 import { segundoFator } from '../../public/js/telas/login.js';
 import { api, ErroApi, mensagem } from '../../public/js/api.js';
@@ -156,4 +156,25 @@ test('api: 503 (com ou sem corpo) vira mensagem de servidor ocupado; keepalive r
   }
   await api('POST', '/logout', undefined, { keepalive: true });
   assert.deepEqual(chamadas.map((op) => op.keepalive), [false, false, true]);
+});
+
+test('fingerprintDoMembro: calculado da chave pública, ignora o campo pronto do servidor', async () => {
+  const { publica } = await c.gerarParX25519();
+  const esperado = await c.fingerprint(publica);
+  const membro = { chave_publica: c.b64u(publica), fingerprint_confirmado: 'AAAA AAAA AAAA AAAA AAAA AAAA AAAA AAAA' };
+  assert.equal(await fingerprintDoMembro(membro), esperado);
+  assert.match(esperado, /^([0-9A-F]{4} ){7}[0-9A-F]{4}$/);
+  assert.equal(await fingerprintDoMembro({ chave_publica: null }), null);
+  await assert.rejects(fingerprintDoMembro({ chave_publica: c.b64u(new Uint8Array(31)) }), /chave_publica_invalida/);
+});
+
+test('fingerprintConfere: aceita sem espaços/minúsculas; recusa 1 dígito trocado e vazio', async () => {
+  const fp = await c.fingerprint(new Uint8Array(32));
+  assert.equal(fingerprintConfere(fp, fp), true);
+  assert.equal(fingerprintConfere(` ${fp.replace(/ /g, '').toLowerCase()} `, fp), true);
+  const trocado = (fp[0] === '0' ? '1' : '0') + fp.slice(1);
+  assert.equal(fingerprintConfere(trocado, fp), false);
+  assert.equal(fingerprintConfere('', fp), false);
+  assert.equal(fingerprintConfere('', ''), false);
+  assert.equal(fingerprintConfere(fp, null), false);
 });

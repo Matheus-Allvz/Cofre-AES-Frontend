@@ -65,6 +65,9 @@ jobs:
       - name: Segredos de MFA e recuperação fora dos logs da API
         # Sem os campos de número variável ("em", "duracao_ms"): um código TOTP de 6 dígitos
         # coincidiria com os microssegundos do timestamp (ver scripts/segredos-nos-logs.mjs).
-        run: docker compose -p cofre-e2e logs --no-log-prefix api | node scripts/segredos-nos-logs.mjs .e2e-sentinelas.txt
+        # pipefail: se o docker compose logs falhar (projeto errado), o passo falha também.
+        run: |
+          set -o pipefail
+          docker compose -p cofre-e2e logs --no-log-prefix api | node scripts/segredos-nos-logs.mjs .e2e-sentinelas.txt
       - if: always()
         run: docker compose -p cofre-e2e logs api | tail -n 50; docker compose -p cofre-e2e down -v
