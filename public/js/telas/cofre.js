@@ -1,6 +1,8 @@
 // #/cofre: coleções e itens (Fase 6). sync → abre envelopes e metas em memória → lista com busca
 // local; revelar/copiar/histórico pelas rotas auditadas; lixeira. O segredo revelado vive só no
 // painel do item aberto: fechar o item, abrir outro, recarregar ou bloquear descarta o painel.
+// Ids de coleção/item nos caminhos já passaram por aad.* (UUID) ao decifrar; os da lixeira e do
+// histórico, que podem vir de linha ilegível, vão com encodeURIComponent.
 import { api, ErroApi, mensagem } from '../api.js';
 import { buscar } from '../busca.js';
 import * as cofre from '../cofre.js';
@@ -321,7 +323,7 @@ async function historico(ctx, col, item, alvo) {
     const box = el('div');
     const ver = async () => {
       try {
-        const resp = await api('GET', `/itens/${item.id}/versoes/${v.versao}`);
+        const resp = await api('GET', `/itens/${item.id}/versoes/${encodeURIComponent(v.versao)}`);
         const { meta, segredo } = await cofre.abrirVersao({ eu: eu(), colecao: col, item, versao: v.versao, resp });
         trocar(box, el('pre', {}, JSON.stringify({ ...meta, ...segredo }, null, 2)), ...restaurar(meta, segredo));
       } catch (e) {
@@ -371,9 +373,9 @@ async function abrirLixeira(ctx, col) {
   });
   const linhas = itens.map((i) => el('li', { class: 'secret-item' },
     el('span', {}, `${i.meta?.titulo ?? 'Item adulterado'} · excluído ${quando(i.excluidoEm)} `),
-    acao('Restaurar', 'btn-secondary', () => api('POST', `/itens/${i.id}/restaurar`)),
+    acao('Restaurar', 'btn-secondary', () => api('POST', `/itens/${encodeURIComponent(i.id)}/restaurar`)),
     cofre.pode(col.permissao, 'gerenciar')
-      ? acao('Apagar definitivo', 'btn-danger', () => (window.confirm('Apagar de vez este item e o histórico dele?') ? api('DELETE', `/itens/${i.id}/definitivo`) : null))
+      ? acao('Apagar definitivo', 'btn-danger', () => (window.confirm('Apagar de vez este item e o histórico dele?') ? api('DELETE', `/itens/${encodeURIComponent(i.id)}/definitivo`) : null))
       : null));
   trocar(painel, el('section', { class: 'card' }, el('h2', {}, `Lixeira de ${col.nome}`),
     el('p', { class: 'muted' }, 'Itens ficam 30 dias na lixeira e depois são apagados.'),
