@@ -3,3 +3,4 @@
 node_modules/
 __pycache__/
 .e2e-backend.env
+.e2e-sentinelas.txt
