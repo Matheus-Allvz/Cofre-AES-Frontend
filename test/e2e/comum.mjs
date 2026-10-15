@@ -32,6 +32,7 @@ export function navegador() {
     // de conta (15 min) não é repetido.
     const espera = Number(r.headers.get('retry-after'));
     if (r.status === 429 && espera > 0 && espera <= 60) {
+      console.error(`[e2e] 429 em ${metodo} ${caminho}: limite por IP, repetindo em ${espera} s`);
       await new Promise((ok) => setTimeout(ok, espera * 1000 + 200));
       r = await pedir();
     }
