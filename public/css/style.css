@@ -238,3 +238,9 @@ h2 { font-size: 1.1rem; margin: 0 0 8px; }
 }
 
 .ok { color: var(--success); font-weight: 600; }
+
+/* Auditoria (Fase 8) */
+.tabela { overflow-x: auto; }
+.tabela table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+.tabela th, .tabela td { border-bottom: 1px solid #ddd; padding: 0.3rem 0.5rem; text-align: left; vertical-align: top; }
+.tabela td code { white-space: pre-wrap; word-break: break-all; }

@@ -49,6 +49,7 @@ export async function telaConta(app) {
     el('div', { class: 'id-display' }, el('code', {}, await fingerprint(estado.publica))),
     u.estado === 'ativo' ? el('p', {}, el('a', { href: '#/cofre' }, 'Cofre →')) : null,
     gestor ? el('p', {}, el('a', { href: '#/pessoas' }, 'Pessoas da organização →')) : null,
+    gestor ? el('p', {}, el('a', { href: '#/auditoria' }, 'Auditoria →')) : null,
     el('button', { type: 'button', class: 'btn btn-secondary', onclick: () => sair() }, 'Sair'));
 
   if (perfil.mfa_pendente) {
@@ -61,6 +62,7 @@ export async function telaConta(app) {
   trocar(app, el('h1', {}, 'Minha conta'), cabecalho,
     secaoMfa(perfil, recarregar),
     await secaoSessoes(),
+    await secaoMeusEventos(),
     gestor ? await secaoPolitica() : null,
     secaoSenha(perfil));
 }
@@ -156,6 +158,39 @@ function mostrarCodigos(sec, email, codigos, recarregar) {
 }
 
 // ---------- Sessões ----------
+
+// ---------- Meus acessos (RF-A06: o usuário vê os próprios eventos de login) ----------
+
+const NOMES_EVENTO = {
+  'auth.login': 'Login', 'auth.logout': 'Saída', 'auth.bloqueio': 'Bloqueio por tentativas', 'auth.mfa': 'Segundo fator',
+  'auth.senha_trocada': 'Troca de senha-mestra', 'auth.recuperacao': 'Recuperação pelo kit', 'auth.sessao_revogada': 'Sessão encerrada',
+};
+
+async function secaoMeusEventos() {
+  const sec = el('section', { class: 'card', id: 'meus-eventos' }, el('h2', {}, 'Meus acessos'));
+  const aviso = el('p', { class: 'muted', role: 'status' });
+  const lista = el('ul', { class: 'secret-list' });
+  const mais = el('button', { type: 'button', class: 'btn btn-secondary btn-sm', hidden: true }, 'Mais antigos');
+  let cursor = null;
+  async function carregar() {
+    try {
+      const q = cursor ? `?limite=20&antes_de_id=${cursor}` : '?limite=20';
+      const eventos = await api('GET', `/eu/eventos${q}`);
+      lista.append(...eventos.map((e) => el('li', { class: 'secret-item' },
+        el('span', {}, `${quando(e.em)} · ${NOMES_EVENTO[e.tipo] ?? e.tipo} · ${e.resultado === 'ok' ? 'ok' : 'FALHOU'}`),
+        el('span', { class: 'muted' }, ` ${e.ip ?? ''} ${e.user_agent ?? ''}`))));
+      cursor = eventos.at(-1)?.id ?? cursor;
+      mais.hidden = eventos.length < 20;
+      aviso.textContent = lista.childElementCount ? 'Se algum acesso não foi seu, troque a senha-mestra e encerre as sessões.' : 'Nenhum evento.';
+    } catch (e) {
+      falhou(aviso, e);
+    }
+  }
+  mais.addEventListener('click', carregar);
+  await carregar();
+  sec.append(aviso, lista, mais);
+  return sec;
+}
 
 async function secaoSessoes() {
   const sec = el('section', { class: 'card' }, el('h2', {}, 'Sessões ativas'));
