@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import * as c from '../../public/js/cripto.js';
 import {
   abrirItem, abrirSegredo, abrirSync, abrirVersao, chavePublicaConfirmada, montarColecao, montarEnvelopesOwner, montarItem,
-  montarMembro, montarRotacao, podeReceberAcesso, rotacionarColecao,
+  montarMembro, montarRotacao, podeReceberAcesso, prepararRotacao, rotacionarColecao,
 } from '../../public/js/cofre.js';
 
 const ORG = '11111111-1111-4111-8111-111111111111';
@@ -178,7 +178,9 @@ test('rotacionarColecao: uma chamada a GET /colecoes/{id}/rotacao + /membros e e
     if (metodo === 'POST') return { corpo };
     return respostas[`${metodo} ${caminho}`];
   };
-  const { corpo } = await rotacionarColecao({ eu: s.dono.eu, colecao: s.colecao, pedir });
+  // O que este navegador sincronizou: o item (v2); a lixeira não vem no sync.
+  const itensSync = [{ id: s.item.id, colecaoId: s.corpo.id, versao: 2, chaveVer: 1 }];
+  const { corpo } = await rotacionarColecao({ eu: s.dono.eu, colecao: s.colecao, pedir, itensSync });
   assert.deepEqual(pedidos, [`GET /colecoes/${s.corpo.id}/rotacao`, 'GET /membros', `POST /colecoes/${s.corpo.id}/rotacionar`]);
   assert.ok(!pedidos.some((p) => p.includes('/segredo') || p.includes('/versoes')), 'nada pelas rotas de revelar');
   assert.deepEqual(corpo.itens.map((i) => i.id), [s.item.id, s.lixo.id]);
@@ -186,6 +188,57 @@ test('rotacionarColecao: uma chamada a GET /colecoes/{id}/rotacao + /membros e e
   // Chave da coleção mudou desde o sync: não envia nada e pede re-sincronizar.
   respostas[`GET /colecoes/${s.corpo.id}/rotacao`].chave_ver = 2;
   pedidos.length = 0;
-  await assert.rejects(rotacionarColecao({ eu: s.dono.eu, colecao: s.colecao, pedir }), /chave_ver_desatualizada/);
+  await assert.rejects(rotacionarColecao({ eu: s.dono.eu, colecao: s.colecao, pedir, itensSync }), /chave_ver_desatualizada/);
   assert.ok(!pedidos.some((p) => p.startsWith('POST')));
+});
+
+/** pedir() falso para GET /rotacao e /membros do cenário (com `itens` trocáveis). */
+function servidorFalso(s, itens = s.itens) {
+  const pedidos = [];
+  const pedir = async (metodo, caminho, corpo) => {
+    pedidos.push(`${metodo} ${caminho}`);
+    if (metodo === 'POST') return { corpo };
+    if (caminho === '/membros') return [s.dono.membro, s.ana.membro];
+    return { chave_ver: 1, membros: s.membros, itens: itens.map((i) => ({ excluido_em: null, ...i })), versoes: s.versoes.map(({ tipo, ...v }) => v) };
+  };
+  return { pedir, pedidos };
+}
+
+test('herdado: itens de /rotacao divergentes do sync (rollback, sumiço, chave) abortam antes de enviar', async () => {
+  const s = await cenarioRotacao();
+  const itensSync = [{ id: s.item.id, colecaoId: s.corpo.id, versao: 2, chaveVer: 1 }, { id: 'outra', colecaoId: 'outra-col', versao: 9, chaveVer: 9 }];
+  const antigo = { ...s.itens[0], versao: 1, meta_cif: s.item.meta_cif, segredo_cif: s.item.segredo_cif }; // blob v1 legítimo
+  for (const itens of [
+    [antigo, s.itens[1]], // servidor devolve a versão anterior (rollback)
+    [s.itens[1]], // item do sync sumiu
+    [{ ...s.itens[0], chave_ver: 2 }, s.itens[1]], // outra chave_ver
+    [{ ...s.itens[0], versao: 3 }, s.itens[1]], // alterado depois do sync
+    [{ ...s.itens[0], excluido_em: '2026-01-01T00:00:00Z' }, s.itens[1]], // foi para a lixeira
+  ]) {
+    const { pedir, pedidos } = servidorFalso(s, itens);
+    await assert.rejects(rotacionarColecao({ eu: s.dono.eu, colecao: s.colecao, pedir, itensSync }), /divergencia_sync/);
+    assert.ok(!pedidos.some((p) => p.startsWith('POST')), 'nada enviado');
+  }
+  // Sem o sync não há como conferir: recusa.
+  await assert.rejects(rotacionarColecao({ eu: s.dono.eu, colecao: s.colecao, pedir: servidorFalso(s).pedir }), /sync_ausente/);
+  // Itens de outras coleções no sync não contam; o caso certo passa.
+  const ok = await rotacionarColecao({ eu: s.dono.eu, colecao: s.colecao, pedir: servidorFalso(s).pedir, itensSync });
+  assert.equal(ok.corpo.itens.length, 2);
+});
+
+test('herdado: prepararRotacao lista os destinatários com o fingerprint antes de recifrar', async () => {
+  const s = await cenarioRotacao();
+  const { pedir, pedidos } = servidorFalso(s);
+  const itensSync = [{ id: s.item.id, colecaoId: s.corpo.id, versao: 2, chaveVer: 1 }];
+  const preparo = await prepararRotacao({ eu: s.dono.eu, colecao: s.colecao, pedir, itensSync });
+  assert.deepEqual(preparo.destinatarios.map((d) => [d.id, d.voce, d.fingerprint]), [
+    [s.dono.eu.usuario.id, true, await c.fingerprint(s.dono.eu.publica)],
+    [s.ana.eu.usuario.id, false, s.ana.membro.fingerprint_confirmado],
+  ]);
+  assert.ok(!pedidos.some((p) => p.startsWith('POST')), 'preparar não envia');
+  // Chave pública trocada pelo servidor: falha já na preparação (antes de mostrar a lista).
+  const outra = await pessoa();
+  const trocada = async (m, caminho, corpo) => (caminho === '/membros'
+    ? [s.dono.membro, { ...s.ana.membro, chave_publica: outra.membro.chave_publica }] : pedir(m, caminho, corpo));
+  await assert.rejects(prepararRotacao({ eu: s.dono.eu, colecao: s.colecao, pedir: trocada, itensSync }), /chave_publica_divergente/);
 });
