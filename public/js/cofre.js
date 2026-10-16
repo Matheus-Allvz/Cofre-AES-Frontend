@@ -1,5 +1,6 @@
-// Cofre (Fase 6) sem DOM e sem rede: abre o sync, monta os corpos de coleção/item e decifra o
-// que as rotas auditadas devolvem. As telas e o E2E (Node) usam estas mesmas funções.
+// Cofre (Fases 6 e 7) sem DOM: abre o sync, monta os corpos de coleção/item/membros/rotação e
+// decifra o que as rotas auditadas devolvem. As telas e o E2E (Node) usam estas mesmas funções.
+// Só `rotacionarColecao` conversa com a API, por uma função `pedir` injetada.
 // Formatos e AAD: ARQUITETURA-ALVO §3. Todo AAD sai de aad.*, que só aceita UUID/inteiro: nenhum
 // id do servidor entra no AAD sem passar por essa validação, e ids novos nascem aqui.
 import * as c from './cripto.js';
@@ -24,15 +25,24 @@ export const TIPOS = Object.freeze({
   chave_api: { meta: ['titulo', 'validade'], segredo: ['valor', 'notas'] },
 });
 
+const so = (obj, permitidos) => obj !== null && typeof obj === 'object' && !Array.isArray(obj)
+  && Object.keys(obj).every((k) => permitidos.includes(k));
+
 function conferirConteudo(tipo, meta, segredo) {
   const t = TIPOS[tipo];
   if (!t) throw new Error('tipo_invalido');
-  const so = (obj, permitidos) => obj && typeof obj === 'object' && Object.keys(obj).every((k) => permitidos.includes(k));
   if (!so(meta, t.meta) || !so(segredo, t.segredo)) throw new Error('conteudo_invalido');
   if (typeof meta.titulo !== 'string' || !meta.titulo.trim()) throw new Error('titulo_obrigatorio');
   if (meta.urls !== undefined && !(Array.isArray(meta.urls) && meta.urls.every((u) => typeof u === 'string'))) {
     throw new Error('conteudo_invalido');
   }
+}
+
+/** §3.4: o JSON decifrado tem de ter só as chaves do tipo do item; senão o item foi adulterado. */
+function doTipo(tipo, campo, obj) {
+  if (!so(obj, TIPOS[tipo]?.[campo] ?? [])) throw new Error('adulterado');
+  if (campo === 'meta' && typeof obj.titulo !== 'string') throw new Error('adulterado');
+  return obj;
 }
 
 /** collectionKey (bytes) → CryptoKey não-extraível; os bytes são zerados. */
@@ -53,7 +63,10 @@ export async function abrirSync(sync, eu) {
   const org = eu.usuario.org_id;
   const colecoes = new Map();
   for (const col of sync.colecoes) {
-    const base = { id: col.id, chaveVer: col.chave_ver, permissao: col.permissao, rotacaoPendente: col.rotacao_pendente };
+    // `envelope` fica para reabrir a collectionKey em bytes só na hora de compartilhar/rotacionar.
+    const base = {
+      id: col.id, chaveVer: col.chave_ver, permissao: col.permissao, rotacaoPendente: col.rotacao_pendente, envelope: col.chave_colecao_cif,
+    };
     try {
       const bytes = await c.abrirX1(eu, col.chave_colecao_cif, c.aad.envColecao(org, col.id, eu.usuario.id, col.chave_ver));
       const chave = await guardarChave(bytes);
@@ -76,7 +89,8 @@ export async function abrirItem(org, colecao, i) {
   };
   try {
     if (!colecao?.chave || i.chave_ver !== colecao.chaveVer || !TIPOS[i.tipo]) throw new Error('adulterado');
-    item.meta = await json(c.decifrarV1(colecao.chave, i.meta_cif, c.aad.itemMeta(org, colecao.id, i.id, i.chave_ver, i.versao)));
+    const aadMeta = c.aad.itemMeta(org, colecao.id, i.id, i.tipo, i.chave_ver, i.versao);
+    item.meta = doTipo(i.tipo, 'meta', await json(c.decifrarV1(colecao.chave, i.meta_cif, aadMeta)));
     return item;
   } catch {
     return { ...item, erro: 'adulterado' };
@@ -112,7 +126,10 @@ export async function montarColecao({ eu, nome, membros }) {
     const chave = await c.importarChaveAes(bytes);
     return {
       corpo: { id, nome_cif: nomeCif, envelopes },
-      colecao: { id, chaveVer: 1, permissao: 'gerenciar', rotacaoPendente: false, chave, nome: nome.trim() },
+      colecao: {
+        id, chaveVer: 1, permissao: 'gerenciar', rotacaoPendente: false, chave, nome: nome.trim(),
+        envelope: envelopes[0].chave_colecao_cif,
+      },
     };
   } finally {
     bytes.fill(0);
@@ -131,8 +148,8 @@ async function cifrarItem(org, colecao, id, versao, tipo, meta, segredo) {
   const v = colecao.chaveVer;
   return {
     chave_ver: v,
-    meta_cif: await c.cifrarV1(colecao.chave, JSON.stringify(meta), c.aad.itemMeta(org, colecao.id, id, v, versao)),
-    segredo_cif: await c.cifrarV1(colecao.chave, JSON.stringify(segredo), c.aad.itemSegredo(org, colecao.id, id, v, versao)),
+    meta_cif: await c.cifrarV1(colecao.chave, JSON.stringify(meta), c.aad.itemMeta(org, colecao.id, id, tipo, v, versao)),
+    segredo_cif: await c.cifrarV1(colecao.chave, JSON.stringify(segredo), c.aad.itemSegredo(org, colecao.id, id, tipo, v, versao)),
   };
 }
 
@@ -151,18 +168,24 @@ export async function montarEdicao({ eu, colecao, item, meta, segredo, senhaTroc
   return { ifMatch: String(item.versao), corpo: { ...corpo, senha_trocada: Boolean(senhaTrocada) } };
 }
 
-/** Resposta de GET /itens/{id}/segredo → objeto do segredo (§3.4). Falha se adulterado/movido. */
+/**
+ * Resposta de GET /itens/{id}/segredo → objeto do segredo (§3.4). Falha se adulterado/movido.
+ * `versao`/`chave_ver` da resposta têm de ser os do item no sync: um segredo velho legítimo
+ * (rollback) abriria com o AAD que o próprio servidor anuncia, então o AAD vem do sync.
+ */
 export async function abrirSegredo({ eu, colecao, item, resp }) {
-  const aadS = c.aad.itemSegredo(eu.usuario.org_id, colecao.id, item.id, resp.chave_ver, resp.versao);
-  return json(c.decifrarV1(colecao.chave, resp.segredo_cif, aadS));
+  if (resp.versao !== item.versao || resp.chave_ver !== item.chaveVer) throw new Error('adulterado');
+  const aadS = c.aad.itemSegredo(eu.usuario.org_id, colecao.id, item.id, item.tipo, item.chaveVer, item.versao);
+  return doTipo(item.tipo, 'segredo', await json(c.decifrarV1(colecao.chave, resp.segredo_cif, aadS)));
 }
 
 /** Resposta de GET /itens/{id}/versoes/{v} → { meta, segredo } daquela versão. */
 export async function abrirVersao({ eu, colecao, item, versao, resp }) {
   const org = eu.usuario.org_id;
+  const aad = (f) => f(org, colecao.id, item.id, item.tipo, resp.chave_ver, versao);
   return {
-    meta: await json(c.decifrarV1(colecao.chave, resp.meta_cif, c.aad.itemMeta(org, colecao.id, item.id, resp.chave_ver, versao))),
-    segredo: await json(c.decifrarV1(colecao.chave, resp.segredo_cif, c.aad.itemSegredo(org, colecao.id, item.id, resp.chave_ver, versao))),
+    meta: doTipo(item.tipo, 'meta', await json(c.decifrarV1(colecao.chave, resp.meta_cif, aad(c.aad.itemMeta)))),
+    segredo: doTipo(item.tipo, 'segredo', await json(c.decifrarV1(colecao.chave, resp.segredo_cif, aad(c.aad.itemSegredo)))),
   };
 }
 
@@ -185,4 +208,141 @@ export async function copiarComLimpeza(texto, { clipboard = globalThis.navigator
     if (atual === null || atual === texto) await clipboard.writeText('').catch(() => {});
   }, ms);
   return () => cancelar(id);
+}
+
+// ---------- Fase 7: compartilhar, owners e rotação ----------
+
+/** collectionKey em bytes (reabre o envelope x1 do usuário). O chamador zera depois de usar. */
+async function bytesDaColecao(eu, colecao) {
+  if (!colecao?.envelope || colecao.erro) throw new Error('colecao_ilegivel');
+  const org = eu.usuario.org_id;
+  return c.abrirX1(eu, colecao.envelope, c.aad.envColecao(org, colecao.id, eu.usuario.id, colecao.chaveVer));
+}
+
+const normFp = (s) => String(s ?? '').replace(/\s+/g, '').toUpperCase();
+
+/**
+ * Chave pública de um membro de GET /membros, só se o fingerprint calculado aqui bate com o que
+ * foi confirmado fora de banda (`fingerprint_confirmado`). Sem confirmação ou divergente → erro:
+ * não envelopar a collectionKey para uma chave que pode ter sido trocada pelo servidor.
+ */
+export async function chavePublicaConfirmada(m) {
+  if (!m?.fingerprint_confirmado || !m.chave_publica) throw new Error('fingerprint_nao_confirmado');
+  const publica = c.deB64u(m.chave_publica);
+  if (publica.length !== 32) throw new Error('chave_publica_invalida');
+  if (normFp(await c.fingerprint(publica)) !== normFp(m.fingerprint_confirmado)) throw new Error('chave_publica_divergente');
+  return publica;
+}
+
+/** Quem a UI oferece para receber acesso: ativo e com fingerprint confirmado. */
+export const podeReceberAcesso = (m) => m.estado === 'ativo' && Boolean(m.fingerprint_confirmado);
+
+/** POST /colecoes/{id}/membros: envelope x1 da collectionKey atual para `membro` (de GET /membros). */
+export async function montarMembro({ eu, colecao, membro, permissao }) {
+  if (!PERMISSOES.includes(permissao)) throw new Error('permissao_invalida');
+  if (!podeReceberAcesso(membro)) throw new Error('destinatario_invalido');
+  const publica = await chavePublicaConfirmada(membro);
+  const bytes = await bytesDaColecao(eu, colecao);
+  try {
+    const aadEnv = c.aad.envColecao(eu.usuario.org_id, colecao.id, membro.id, colecao.chaveVer);
+    return { usuario_id: membro.id, permissao, chave_ver: colecao.chaveVer, chave_colecao_cif: await c.envelopeX1(publica, bytes, aadEnv) };
+  } finally {
+    bytes.fill(0);
+  }
+}
+
+/**
+ * Envelopes `gerenciar` de TODAS as coleções que eu abro para `alvo` (promoção a owner e
+ * reativação de owner, D13). Coleção ilegível interrompe: o servidor exigiria o envelope dela.
+ */
+export async function montarEnvelopesOwner({ eu, colecoes, alvo }) {
+  const publica = await chavePublicaConfirmada(alvo);
+  const envelopes = [];
+  for (const col of colecoes) {
+    const bytes = await bytesDaColecao(eu, col);
+    try {
+      const aadEnv = c.aad.envColecao(eu.usuario.org_id, col.id, alvo.id, col.chaveVer);
+      envelopes.push({ colecao_id: col.id, chave_ver: col.chaveVer, chave_colecao_cif: await c.envelopeX1(publica, bytes, aadEnv) });
+    } finally {
+      bytes.fill(0);
+    }
+  }
+  return envelopes;
+}
+
+/**
+ * Corpo de POST /colecoes/{id}/rotacionar: collectionKey nova (chave_ver+1), nome, todos os
+ * `itens` (inclusive lixeira, com segredo_cif) e todas as `versoes` decifrados com a chave atual e
+ * recifrados com a nova (mesma `versao`), e um envelope para cada um de `membros` (GET
+ * /colecoes/{id}/membros), com a chave pública conferida pelo fingerprint (`pessoas` = GET /membros).
+ * Qualquer blob que não abre interrompe (erro 'adulterado').
+ */
+export async function montarRotacao({ eu, colecao, membros, pessoas, itens, versoes }) {
+  const org = eu.usuario.org_id;
+  const nova = colecao.chaveVer + 1;
+  const bytes = c.gerarChaveAes();
+  try {
+    const chaveNova = await c.importarChaveAes(bytes);
+    const envelopes = [];
+    for (const { usuario_id: uid } of membros) {
+      const publica = uid === eu.usuario.id ? eu.publica : await chavePublicaConfirmada(pessoas.find((p) => p.id === uid));
+      envelopes.push({ usuario_id: uid, chave_colecao_cif: await c.envelopeX1(publica, bytes, c.aad.envColecao(org, colecao.id, uid, nova)) });
+    }
+    async function recifrar(id, tipo, chaveVer, versao, metaCif, segredoCif) {
+      const aad = (f, v) => f(org, colecao.id, id, tipo, v, versao);
+      let meta, segredo;
+      try {
+        meta = await c.decifrarV1(colecao.chave, metaCif, aad(c.aad.itemMeta, chaveVer));
+        segredo = await c.decifrarV1(colecao.chave, segredoCif, aad(c.aad.itemSegredo, chaveVer));
+        doTipo(tipo, 'meta', JSON.parse(utf8.decode(meta)));
+        doTipo(tipo, 'segredo', JSON.parse(utf8.decode(segredo)));
+      } catch {
+        throw new Error('adulterado');
+      }
+      try {
+        return {
+          meta_cif: await c.cifrarV1(chaveNova, meta, aad(c.aad.itemMeta, nova)),
+          segredo_cif: await c.cifrarV1(chaveNova, segredo, aad(c.aad.itemSegredo, nova)),
+        };
+      } finally {
+        meta.fill(0);
+        segredo.fill(0);
+      }
+    }
+    const corpoItens = [];
+    for (const i of itens) {
+      corpoItens.push({ id: i.id, versao: i.versao, ...(await recifrar(i.id, i.tipo, i.chave_ver, i.versao, i.meta_cif, i.segredo_cif)) });
+    }
+    const corpoVersoes = [];
+    for (const v of versoes) {
+      corpoVersoes.push({ item_id: v.item_id, versao: v.versao, ...(await recifrar(v.item_id, v.tipo, v.chave_ver, v.versao, v.meta_cif, v.segredo_cif)) });
+    }
+    return {
+      chave_ver_atual: colecao.chaveVer,
+      nome_cif: await c.cifrarV1(chaveNova, colecao.nome, c.aad.colecaoNome(org, colecao.id, nova)),
+      envelopes,
+      itens: corpoItens,
+      versoes: corpoVersoes,
+    };
+  } finally {
+    bytes.fill(0);
+  }
+}
+
+/**
+ * Rotação completa a partir do cliente de quem gerencia. `pedir(metodo, caminho, corpo)` devolve o
+ * JSON ou lança (api.js na tela, o "navegador" no E2E). Membros, itens (inclusive lixeira) com
+ * segredo e versões vêm de GET /colecoes/{id}/rotacao numa resposta, auditada no servidor como um
+ * evento `colecao.rotacao_iniciada`. Chave da coleção mudou desde o sync → erro
+ * 'chave_ver_desatualizada' (o chamador re-sincroniza); 409 do POST idem.
+ */
+export async function rotacionarColecao({ eu, colecao, pedir }) {
+  const base = `/colecoes/${encodeURIComponent(colecao.id)}`;
+  const dados = await pedir('GET', `${base}/rotacao`);
+  if (dados.chave_ver !== colecao.chaveVer) throw new Error('chave_ver_desatualizada');
+  const pessoas = await pedir('GET', '/membros');
+  const tipos = new Map(dados.itens.map((i) => [i.id, i.tipo]));
+  const versoes = dados.versoes.map((v) => ({ ...v, tipo: tipos.get(v.item_id) }));
+  const corpo = await montarRotacao({ eu, colecao, membros: dados.membros, pessoas, itens: dados.itens, versoes });
+  return pedir('POST', `${base}/rotacionar`, corpo);
 }

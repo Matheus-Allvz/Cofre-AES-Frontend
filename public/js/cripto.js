@@ -179,6 +179,11 @@ function n(v) {
   if (!Number.isInteger(v) || v < 1) throw new Error('inteiro_invalido');
   return String(v);
 }
+const TIPOS_ITEM = ['login', 'nota', 'chave_api'];
+function tipo(v) {
+  if (!TIPOS_ITEM.includes(v)) throw new Error('tipo_invalido');
+  return v;
+}
 const P = 'cofre-emp/v1';
 
 export const aad = Object.freeze({
@@ -188,10 +193,11 @@ export const aad = Object.freeze({
   envColecao: (orgId, colecaoId, usuarioDestId, chaveVer) =>
     `${P}|env-colecao|${id(orgId)}|${id(colecaoId)}|${id(usuarioDestId)}|${n(chaveVer)}`,
   colecaoNome: (orgId, colecaoId, chaveVer) => `${P}|colecao-nome|${id(orgId)}|${id(colecaoId)}|${n(chaveVer)}`,
-  itemMeta: (orgId, colecaoId, itemId, chaveVer, versao) =>
-    `${P}|item-meta|${id(orgId)}|${id(colecaoId)}|${id(itemId)}|${n(chaveVer)}|${n(versao)}`,
-  itemSegredo: (orgId, colecaoId, itemId, chaveVer, versao) =>
-    `${P}|item-segredo|${id(orgId)}|${id(colecaoId)}|${id(itemId)}|${n(chaveVer)}|${n(versao)}`,
+  // `tipo` no AAD (Fase 7): o servidor não troca o tipo exibido de um item sem quebrar a decifragem.
+  itemMeta: (orgId, colecaoId, itemId, tipoItem, chaveVer, versao) =>
+    `${P}|item-meta|${id(orgId)}|${id(colecaoId)}|${id(itemId)}|${tipo(tipoItem)}|${n(chaveVer)}|${n(versao)}`,
+  itemSegredo: (orgId, colecaoId, itemId, tipoItem, chaveVer, versao) =>
+    `${P}|item-segredo|${id(orgId)}|${id(colecaoId)}|${id(itemId)}|${tipo(tipoItem)}|${n(chaveVer)}|${n(versao)}`,
 });
 
 // ---------- Recovery Key (base32 RFC 4648, sem padding, grupos de 4) ----------

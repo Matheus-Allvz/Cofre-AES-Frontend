@@ -92,7 +92,7 @@ test('segredo ou meta movidos de um item para outro não decifram (AAD com item_
   const { dono, colecao, corpo } = await cenario();
   const a = await montarItem({ eu: dono.eu, colecao, tipo: 'login', ...LOGIN });
   const b = await montarItem({ eu: dono.eu, colecao, tipo: 'login', ...LOGIN });
-  await assert.rejects(abrirSegredo({ eu: dono.eu, colecao, item: { id: b.id }, resp: { segredo_cif: a.segredo_cif, versao: 1, chave_ver: 1 } }));
+  await assert.rejects(abrirSegredo({ eu: dono.eu, colecao, item: { id: b.id, tipo: 'login', versao: 1, chaveVer: 1 }, resp: { segredo_cif: a.segredo_cif, versao: 1, chave_ver: 1 } }), /OperationError|decrypt/i);
   assert.equal((await abrirItem(ORG, colecao, { ...linhaItem(corpo.id, b), meta_cif: a.meta_cif })).erro, 'adulterado');
 });
 

@@ -20,7 +20,7 @@ test('owner convida, member aceita, owner confirma com o fingerprint calculado d
   const { aceite, fingerprint: daPessoa } = await aceitar(pessoa, conv.dados.link.slice('/#/convite/'.length), SENHA, 'Pessoa E2E');
   assert.equal(aceite.estado, 'aceito');
   assert.equal((await entrar(pessoa, EMAIL, SENHA)).status, 200);
-  const { gerar } = await configurarMfa(pessoa); // política padrão: MFA obrigatório
+  const { gerar } = await configurarMfa(pessoa); // política ligada em contas.test.mjs: MFA obrigatório
   const antes = await pessoa('GET', '/org');
   assert.deepEqual([antes.status, antes.dados], [403, { erro: 'sem_permissao' }]);
 

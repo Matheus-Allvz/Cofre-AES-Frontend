@@ -106,8 +106,11 @@ test('aad segue a tabela §3.3', () => {
   assert.equal(c.aad.privKey(usuario), `cofre-emp/v1|privkey|${usuario}`);
   assert.equal(c.aad.envColecao(org, colecao, usuario, 3), `cofre-emp/v1|env-colecao|${org}|${colecao}|${usuario}|3`);
   assert.equal(c.aad.colecaoNome(org, colecao, 2), `cofre-emp/v1|colecao-nome|${org}|${colecao}|2`);
-  assert.equal(c.aad.itemMeta(org, colecao, item, 2, 5), `cofre-emp/v1|item-meta|${org}|${colecao}|${item}|2|5`);
-  assert.equal(c.aad.itemSegredo(org, colecao, item, 2, 5), `cofre-emp/v1|item-segredo|${org}|${colecao}|${item}|2|5`);
+  assert.equal(c.aad.itemMeta(org, colecao, item, 'login', 2, 5), `cofre-emp/v1|item-meta|${org}|${colecao}|${item}|login|2|5`);
+  assert.equal(c.aad.itemSegredo(org, colecao, item, 'chave_api', 2, 5), `cofre-emp/v1|item-segredo|${org}|${colecao}|${item}|chave_api|2|5`);
+  for (const ruim of ['Login', 'outro', '', 'login|1', undefined]) {
+    assert.throws(() => c.aad.itemMeta(org, colecao, item, ruim, 2, 5), /tipo_invalido/);
+  }
   assert.equal(c.aad.userKey(usuario.toUpperCase()), c.aad.userKey(usuario), 'uuid em minúsculas');
   assert.throws(() => c.aad.userKey('abc|x'), /uuid_invalido/);
   assert.throws(() => c.aad.colecaoNome(org, colecao, 0), /inteiro_invalido/);

@@ -1,6 +1,6 @@
 // [FE-E2E] Contas contra a API real, com os mesmos módulos do front (cripto.js/fluxos.js).
 // Pré-requisito: bash scripts/e2e-backend.sh <backend>; set -a; . ./.e2e.env; set +a.
-// Com a política padrão (MFA obrigatório) o fluxo passa pela configuração de TOTP.
+// MFA é opcional por padrão (Fase 7); o owner liga a política e o fluxo passa pela configuração de TOTP.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { montarTrocaSenha } from '../../public/js/fluxos.js';
@@ -37,9 +37,13 @@ test('owner aceita convite do bootstrap, faz login e decifra a própria chave pr
   assert.deepEqual([reuso.status, reuso.dados], [410, { erro: 'convite_expirado' }]);
 });
 
-test('política padrão exige MFA: sessão pendente até configurar o TOTP', opcoes, async () => {
+test('MFA opcional por padrão; com a política ligada, sessão pendente até configurar o TOTP', opcoes, async () => {
+  const padrao = (await owner('GET', '/eu')).dados;
+  assert.deepEqual(padrao.politica, { mfa_obrigatorio: false, inatividade_min: 15 });
+  assert.equal(padrao.mfa_pendente, false);
+  const pol = await owner('PUT', '/org/politica', { mfa_obrigatorio: true, inatividade_min: 15 });
+  assert.equal(pol.status, 200, JSON.stringify(pol.dados));
   const eu = (await owner('GET', '/eu')).dados;
-  assert.deepEqual(eu.politica, { mfa_obrigatorio: true, inatividade_min: 15 });
   assert.equal(eu.mfa_pendente, true);
   const bloqueado = await owner('GET', '/org');
   assert.deepEqual([bloqueado.status, bloqueado.dados], [403, { erro: 'mfa_configuracao_requerida' }]);
