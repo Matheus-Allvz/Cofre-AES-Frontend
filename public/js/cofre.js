@@ -331,28 +331,18 @@ export async function montarRotacao({ eu, colecao, membros, pessoas, itens, vers
 
 /**
  * Rotação completa a partir do cliente de quem gerencia. `pedir(metodo, caminho, corpo)` devolve o
- * JSON ou lança (api.js na tela, o "navegador" no E2E). Os segredos saem pelas rotas auditadas
- * (`item.revelado`/`item.versao_revelada` registram quem rotacionou). Em 409 o chamador
- * re-sincroniza e chama de novo.
+ * JSON ou lança (api.js na tela, o "navegador" no E2E). Membros, itens (inclusive lixeira) com
+ * segredo e versões vêm de GET /colecoes/{id}/rotacao numa resposta, auditada no servidor como um
+ * evento `colecao.rotacao_iniciada`. Chave da coleção mudou desde o sync → erro
+ * 'chave_ver_desatualizada' (o chamador re-sincroniza); 409 do POST idem.
  */
 export async function rotacionarColecao({ eu, colecao, pedir }) {
   const base = `/colecoes/${encodeURIComponent(colecao.id)}`;
-  const membros = await pedir('GET', `${base}/membros`);
+  const dados = await pedir('GET', `${base}/rotacao`);
+  if (dados.chave_ver !== colecao.chaveVer) throw new Error('chave_ver_desatualizada');
   const pessoas = await pedir('GET', '/membros');
-  const sync = await pedir('GET', '/sync');
-  const linhas = [...sync.itens.filter((i) => i.colecao_id === colecao.id), ...(await pedir('GET', `${base}/lixeira`))];
-  const itens = [];
-  const versoes = [];
-  for (const l of linhas) {
-    const id = encodeURIComponent(l.id);
-    const s = await pedir('GET', `/itens/${id}/segredo`);
-    if (s.versao !== l.versao || s.chave_ver !== l.chave_ver) throw new Error('adulterado');
-    itens.push({ ...l, segredo_cif: s.segredo_cif });
-    for (const v of await pedir('GET', `/itens/${id}/versoes`)) {
-      const r = await pedir('GET', `/itens/${id}/versoes/${encodeURIComponent(v.versao)}`);
-      versoes.push({ item_id: l.id, tipo: l.tipo, versao: v.versao, ...r });
-    }
-  }
-  const corpo = await montarRotacao({ eu, colecao, membros, pessoas, itens, versoes });
+  const tipos = new Map(dados.itens.map((i) => [i.id, i.tipo]));
+  const versoes = dados.versoes.map((v) => ({ ...v, tipo: tipos.get(v.item_id) }));
+  const corpo = await montarRotacao({ eu, colecao, membros: dados.membros, pessoas, itens: dados.itens, versoes });
   return pedir('POST', `${base}/rotacionar`, corpo);
 }

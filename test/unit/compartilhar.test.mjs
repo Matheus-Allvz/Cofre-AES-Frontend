@@ -161,19 +161,17 @@ test('montarRotacao recusa blob adulterado e membro com chave divergente', async
   await assert.rejects(montarRotacao({ ...base, pessoas: [] }), /fingerprint_nao_confirmado/);
 });
 
-test('rotacionarColecao: busca membros, lixeira, segredos e versões pela API e envia o corpo completo', async () => {
+test('rotacionarColecao: uma chamada a GET /colecoes/{id}/rotacao + /membros e envia o corpo completo', async () => {
   const s = await cenarioRotacao();
   const pedidos = [];
   const respostas = {
-    [`GET /colecoes/${s.corpo.id}/membros`]: s.membros.map((m) => ({ ...m, permissao: 'ver', chave_ver: 1 })),
+    [`GET /colecoes/${s.corpo.id}/rotacao`]: {
+      chave_ver: 1,
+      membros: s.membros,
+      itens: s.itens.map((i) => ({ ...i, excluido_em: null })),
+      versoes: s.versoes.map(({ tipo, ...v }) => v), // o servidor não manda o tipo da versão
+    },
     'GET /membros': [s.dono.membro, s.ana.membro],
-    'GET /sync': { colecoes: [], itens: [{ ...s.itens[0] }, { id: crypto.randomUUID(), colecao_id: crypto.randomUUID() }] },
-    [`GET /colecoes/${s.corpo.id}/lixeira`]: [{ ...s.itens[1], segredo_cif: undefined }],
-    [`GET /itens/${s.item.id}/segredo`]: { segredo_cif: s.itens[0].segredo_cif, versao: 2, chave_ver: 1 },
-    [`GET /itens/${s.lixo.id}/segredo`]: { segredo_cif: s.lixo.segredo_cif, versao: 1, chave_ver: 1 },
-    [`GET /itens/${s.item.id}/versoes`]: [{ versao: 1, chave_ver: 1 }],
-    [`GET /itens/${s.lixo.id}/versoes`]: [],
-    [`GET /itens/${s.item.id}/versoes/1`]: { meta_cif: s.item.meta_cif, segredo_cif: s.item.segredo_cif, chave_ver: 1 },
   };
   const pedir = async (metodo, caminho, corpo) => {
     pedidos.push(`${metodo} ${caminho}`);
@@ -181,12 +179,13 @@ test('rotacionarColecao: busca membros, lixeira, segredos e versões pela API e 
     return respostas[`${metodo} ${caminho}`];
   };
   const { corpo } = await rotacionarColecao({ eu: s.dono.eu, colecao: s.colecao, pedir });
-  assert.equal(pedidos.at(-1), `POST /colecoes/${s.corpo.id}/rotacionar`);
+  assert.deepEqual(pedidos, [`GET /colecoes/${s.corpo.id}/rotacao`, 'GET /membros', `POST /colecoes/${s.corpo.id}/rotacionar`]);
+  assert.ok(!pedidos.some((p) => p.includes('/segredo') || p.includes('/versoes')), 'nada pelas rotas de revelar');
   assert.deepEqual(corpo.itens.map((i) => i.id), [s.item.id, s.lixo.id]);
   assert.deepEqual(corpo.versoes.map((v) => [v.item_id, v.versao]), [[s.item.id, 1]]);
-  // Segredo com versão diferente da linha (rollback) interrompe antes de enviar.
-  respostas[`GET /itens/${s.item.id}/segredo`] = { ...respostas[`GET /itens/${s.item.id}/segredo`], versao: 1 };
+  // Chave da coleção mudou desde o sync: não envia nada e pede re-sincronizar.
+  respostas[`GET /colecoes/${s.corpo.id}/rotacao`].chave_ver = 2;
   pedidos.length = 0;
-  await assert.rejects(rotacionarColecao({ eu: s.dono.eu, colecao: s.colecao, pedir }), /adulterado/);
+  await assert.rejects(rotacionarColecao({ eu: s.dono.eu, colecao: s.colecao, pedir }), /chave_ver_desatualizada/);
   assert.ok(!pedidos.some((p) => p.startsWith('POST')));
 });

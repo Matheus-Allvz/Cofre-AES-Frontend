@@ -420,8 +420,9 @@ function bannerRotacao({ recarregar }, col) {
       await cofre.rotacionarColecao({ eu: eu(), colecao: col, pedir: (m, c, corpo) => api(m, c, corpo) });
       recarregar();
     } catch (e) {
-      if (e instanceof ErroApi && ['chave_ver_desatualizada', 'conflito_versao', 'rotacao_incompleta', 'ocupado'].includes(e.codigo)) {
-        window.alert(`${mensagem(e)} O cofre foi recarregado: rotacione de novo.`);
+      const conflito = e instanceof ErroApi ? e.codigo : e.message;
+      if (['chave_ver_desatualizada', 'conflito_versao', 'rotacao_incompleta', 'ocupado'].includes(conflito)) {
+        window.alert(`${mensagem(new ErroApi(409, conflito))} O cofre foi recarregado: rotacione de novo.`);
         return recarregar(); // re-sincroniza e o banner volta com o estado novo
       }
       executar.disabled = false;

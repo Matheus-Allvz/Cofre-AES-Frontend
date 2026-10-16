@@ -133,6 +133,9 @@ test('rotação: nova chave_ver; com a collectionKey antiga o ex-membro não dec
   assert.deepEqual([x.status, x.dados], [404, { erro: 'nao_encontrado' }]);
   const evento = sql("SELECT meta::text FROM eventos WHERE tipo = 'colecao.rotacionada' ORDER BY id DESC LIMIT 1");
   assert.deepEqual(JSON.parse(evento), { chave_ver: 2, membros: 1, itens: 1, versoes: 0 });
+  // Os dados vieram de GET /colecoes/{id}/rotacao: um evento, sem item.revelado de quem rotacionou.
+  const iniciada = sql(`SELECT meta::text FROM eventos WHERE tipo = 'colecao.rotacao_iniciada' AND alvo_id = '${ctx.colId}'`);
+  assert.deepEqual(JSON.parse(iniciada), { chave_ver: 1, membros: 1, itens: 1, versoes: 0 });
 });
 
 test('senha trocada: editar com a senha nova tira o item do painel', opcoes, async () => {
