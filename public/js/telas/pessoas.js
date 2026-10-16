@@ -16,7 +16,7 @@ function falhou(aviso, e) {
 export async function telaPessoas(app) {
   const eu = estado.usuario;
   if (!eu) return location.replace('#/login');
-  const voltar = el('p', {}, el('a', { href: '#/conta' }, '← Minha conta'));
+  const voltar = el('p', {}, el('a', { href: '#/conta' }, '← Minha conta'), ' · ', el('a', { href: '#/auditoria' }, 'Auditoria'));
   if (!['owner', 'admin'].includes(eu.papel)) {
     return trocar(app, el('h1', {}, 'Pessoas'), voltar, el('p', { class: 'error-msg' }, mensagem(new ErroApi(403, 'sem_permissao'))));
   }
@@ -73,13 +73,21 @@ function secaoConvite(recarregar) {
 // ---------- Um membro ----------
 
 /**
- * Envelopes `gerenciar` de todas as coleções que eu (owner) abro para `alvo` (D13): promoção a
- * owner e reativação de owner. As collectionKeys são reabertas do sync e descartadas depois.
+ * Envelopes `gerenciar` para `alvo` (D13), das coleções que eu (owner) abro: todas na promoção a
+ * owner; na reativação de owner, só as em que ele ainda não tem envelope (as criadas enquanto
+ * estava suspenso) — o servidor recusa substituir um envelope existente (409 envelope_existente).
+ * As collectionKeys são reabertas do sync e descartadas depois.
  */
-async function envelopesOwner(alvo) {
+async function envelopesOwner(alvo, { soFaltantes = false } = {}) {
   const meu = { usuario: estado.usuario, privada: estado.privada, publica: estado.publica };
   const { colecoes } = await cofre.abrirSync(await api('GET', '/sync'), meu);
-  return cofre.montarEnvelopesOwner({ eu: meu, colecoes: colecoes.values(), alvo });
+  let alvos = [...colecoes.values()];
+  if (soFaltantes) {
+    const tem = await Promise.all(alvos.map(async (col) => (await api('GET', `/colecoes/${encodeURIComponent(col.id)}/membros`))
+      .some((m) => m.usuario_id === alvo.id)));
+    alvos = alvos.filter((_, i) => !tem[i]);
+  }
+  return cofre.montarEnvelopesOwner({ eu: meu, colecoes: alvos, alvo });
 }
 
 function falhaEnvelopes(aviso, e) {
@@ -140,7 +148,7 @@ async function linhaMembro(m, eu, aviso, recarregar, relatorio) {
       // Owner reativado precisa da chave das coleções criadas enquanto estava suspenso (D13).
       if (m.papel !== 'owner') return agir('POST', `${url}/reativar`);
       try {
-        await agir('POST', `${url}/reativar`, { envelopes: await envelopesOwner(m) });
+        await agir('POST', `${url}/reativar`, { envelopes: await envelopesOwner(m, { soFaltantes: true }) });
       } catch (e) {
         falhaEnvelopes(aviso, e);
       }
