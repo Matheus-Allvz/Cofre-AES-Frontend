@@ -2,8 +2,7 @@
  * Cofre AES Empresarial: design system (Fase 10). Referência: docs/design-system.md.
  * Restrições da CSP: só este arquivo (mesma origem), fontes do sistema, nada de style="".
  * Ordem: 1 tokens · 2 base · 3 layout · 4 componentes · 5 utilitários · 6 movimento.
- * Seletores marcados "legado" são aliases das classes de antes da Fase 10:
- * apagar depois que as telas migrarem (tabela de migração no doc).
+ * Os aliases "legado" das classes de antes da Fase 10 foram removidos depois da migração das telas.
  */
 
 /* ============ 1. TOKENS ============ */
@@ -217,7 +216,6 @@ input[type="checkbox"], input[type="radio"] {
   align-items: center;
   gap: var(--space-2) var(--space-5);
 }
-.topbar > .brand { padding: var(--space-3) var(--space-4); } /* legado: casca antiga sem .topbar-inner */
 
 .brand {
   display: inline-flex;
@@ -361,7 +359,7 @@ input[type="checkbox"], input[type="radio"] {
 .menu > summary::after { content: "\25BE"; font-size: 0.8em; } /* ▾ */
 .menu-list {
   position: absolute;
-  right: 0;
+  left: 0; /* ancorado à esquerda: com right: 0 o menu saía da tela a 360px */
   z-index: 5;
   min-width: 12rem;
   margin: var(--space-1) 0 0;
@@ -375,7 +373,7 @@ input[type="checkbox"], input[type="radio"] {
 .menu-list .btn { width: 100%; justify-content: flex-start; }
 
 /* ---- Campo e formulário ---- */
-.field, .form label:where(:not(.checkbox, .checkbox-label)) /* legado */ {
+.field {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
@@ -383,7 +381,7 @@ input[type="checkbox"], input[type="radio"] {
   font-weight: 600;
   color: var(--text);
 }
-.field > input, .field > select, .field > textarea, .form label > input, .form label > select, .form label > textarea { font-size: var(--fs-md); }
+.field > input, .field > select, .field > textarea { font-size: var(--fs-md); }
 .field-help { font-size: var(--fs-sm); font-weight: 400; color: var(--text-muted); }
 .field-error { font-size: var(--fs-sm); font-weight: 600; color: var(--danger-text); }
 .field-error:empty { display: none; }
@@ -392,7 +390,7 @@ input[type="checkbox"], input[type="radio"] {
 .input-group > input { flex: 1; min-width: 0; }
 .input-group > .btn { flex: none; }
 
-.checkbox, .checkbox-label /* legado */ {
+.checkbox {
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
@@ -402,10 +400,9 @@ input[type="checkbox"], input[type="radio"] {
   color: var(--text);
   cursor: pointer;
 }
-.checkbox > input, .checkbox-label > input { margin-top: 0.0625rem; }
+.checkbox > input { margin-top: 0.0625rem; }
 
 .form { display: flex; flex-direction: column; gap: var(--space-4); max-width: var(--container-narrow); }
-.form > .btn { align-self: flex-start; } /* legado: botão solto no form; novo usa .form-actions */
 .form-wide { max-width: none; }
 .form-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .form-grid {
@@ -435,7 +432,7 @@ input[type="checkbox"], input[type="radio"] {
 @media (max-width: 40rem) { .card { padding: var(--space-4); } }
 
 /* ---- Lista (itens do cofre, membros, sessões, eventos) ---- */
-.list, .secret-list /* legado */ {
+.list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -443,7 +440,7 @@ input[type="checkbox"], input[type="radio"] {
   flex-direction: column;
   gap: var(--space-2);
 }
-.list-item, .secret-item /* legado */ {
+.list-item {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: var(--space-3) var(--space-4);
@@ -453,17 +450,18 @@ input[type="checkbox"], input[type="radio"] {
 .list-item:hover { background: var(--surface-hover); }
 .list-item[aria-current="true"], .list-item.is-selected { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
 .list-item-error { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger-text); }
-.list-item-main, .secret-item-main /* legado */ {
+.list-item-main {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2) var(--space-3);
 }
-.list-item-info, .secret-item-info /* legado */ { flex: 1 1 14rem; min-width: 0; display: flex; flex-direction: column; }
-.list-item-title, .secret-item-title /* legado */ { font-weight: 600; overflow-wrap: anywhere; }
-.list-item-meta, .secret-item-sub /* legado */ { font-size: var(--fs-sm); color: var(--text-muted); overflow-wrap: anywhere; }
-.list-item-actions, .secret-item-actions /* legado */ { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.list-item-info { flex: 1 1 14rem; min-width: 0; display: flex; flex-direction: column; }
+.list-item-title { font-weight: 600; overflow-wrap: anywhere; }
+.list-item-meta { font-size: var(--fs-sm); color: var(--text-muted); overflow-wrap: anywhere; }
+.list-item-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.list-item-actions > select { width: auto; min-width: 9rem; } /* permissão do membro, ao lado dos botões */
 
 /* Variante sem caixas: linhas com divisória (sessões, "Meus acessos"). */
 .list-divided { gap: 0; }
@@ -472,20 +470,20 @@ input[type="checkbox"], input[type="radio"] {
 .list-divided > .list-item:hover { background: transparent; }
 
 /* ---- Tabela (auditoria) ---- */
-.table-wrap, .tabela /* legado */ {
+.table-wrap {
   overflow-x: auto; /* rola só a tabela, nunca a página */
   border: 1px solid var(--border);
   border-radius: var(--radius);
   max-width: 100%;
 }
-.table, .tabela table /* legado */ { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
-.table th, .table td, .tabela th, .tabela td /* legado */ {
+.table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.table th, .table td {
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: top;
 }
-.table th, .tabela th /* legado */ {
+.table th {
   background: var(--surface-sunken);
   color: var(--text-muted);
   font-weight: 600;
@@ -493,7 +491,7 @@ input[type="checkbox"], input[type="radio"] {
 }
 .table tbody tr:last-child td { border-bottom: 0; }
 .table tbody tr:hover { background: var(--surface-hover); }
-.table td code, .tabela td code /* legado */ { white-space: pre-wrap; overflow-wrap: anywhere; }
+.table td code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .table .nowrap { white-space: nowrap; }
 
@@ -521,7 +519,7 @@ input[type="checkbox"], input[type="radio"] {
 .badges { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
 
 /* ---- Alerta (bloco persistente) ---- */
-.alert, .error-msg /* legado */ {
+.alert {
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border);
   border-left-width: 4px;
@@ -533,15 +531,14 @@ input[type="checkbox"], input[type="radio"] {
 .alert > :last-child { margin-bottom: 0; }
 .alert-title { display: block; font-weight: 700; margin-bottom: var(--space-1); }
 .alert-success { border-color: var(--success-border); background: var(--success-bg); color: var(--success-text); }
-.alert-danger, .error-msg /* legado */ { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger-text); }
+.alert-danger { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger-text); }
 .alert-warning { border-color: var(--warning-border); background: var(--warning-bg); color: var(--warning-text); }
 .alert-info { border-color: var(--info-border); background: var(--info-bg); color: var(--info-text); }
-.error-msg:empty /* legado: <p class="error-msg"> vazio não pode virar caixa vermelha */ { display: none; }
 
 /* ---- Status (região viva role=status: resultado de ação, progresso) ---- */
 .status { font-size: var(--fs-sm); color: var(--text-muted); }
 .status:empty { display: none; }
-.status-success, .ok /* legado */ { color: var(--success-text); font-weight: 600; }
+.status-success { color: var(--success-text); font-weight: 600; }
 .status-danger {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--danger-border);
@@ -582,7 +579,7 @@ input[type="checkbox"], input[type="radio"] {
 @media (max-width: 40rem) { .dialog-actions > .btn { flex: 1 1 auto; } }
 
 /* ---- Código, fingerprint, kit ---- */
-.code-block, .id-display /* legado */ {
+.code-block {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -594,7 +591,7 @@ input[type="checkbox"], input[type="radio"] {
   font-family: var(--font-mono);
   overflow-wrap: anywhere;
 }
-.code-block > code, .id-display > code /* legado */ {
+.code-block > code {
   flex: 1 1 12rem;
   min-width: 0;
   background: none;

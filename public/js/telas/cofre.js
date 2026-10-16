@@ -10,6 +10,7 @@ import { el, trocar, urlSegura } from '../dom.js';
 import { definir, estado } from '../estado.js';
 import { carregarPalavras, gerarPassphrase, gerarSenha } from '../gerador.js';
 import { sair } from '../sessao.js';
+import { selo, TOM_PERMISSAO } from '../casca.js';
 
 const eu = () => ({ usuario: estado.usuario, privada: estado.privada, publica: estado.publica });
 const quando = (iso) => new Date(iso).toLocaleString('pt-BR');
@@ -23,14 +24,15 @@ const PRINCIPAL = { login: 'senha', nota: 'conteudo', chave_api: 'valor' }; // c
 
 function falhou(aviso, e, texto = 'Não foi possível concluir a ação.') {
   if (e instanceof ErroApi && e.codigo === 'nao_autenticado') return sair(mensagem(e));
-  aviso.className = 'error-msg';
+  aviso.className = 'status status-danger';
   aviso.textContent = e instanceof ErroApi ? mensagem(e) : texto;
 }
 
 export async function telaCofre(app) {
   if (!estado.usuario) return location.replace('#/login');
-  const aviso = el('p', { class: 'muted', role: 'status' }, 'Abrindo o cofre…');
-  trocar(app, el('h1', {}, 'Cofre'), aviso);
+  const aviso = el('p', { class: 'status status-busy', role: 'status' }, 'Abrindo o cofre…');
+  const titulo = el('div', { class: 'page-header' }, el('h1', {}, 'Cofre'));
+  trocar(app, titulo, aviso);
   let dados;
   try {
     dados = await cofre.abrirSync(await api('GET', '/sync'), eu());
@@ -42,7 +44,7 @@ export async function telaCofre(app) {
   definir({ cofre: dados }); // chaves das coleções: só memória, descartadas por limpar()
   const recarregar = () => telaCofre(app);
   const painel = el('div');
-  const lista = el('div');
+  const lista = el('div', { class: 'stack' });
   const busca = el('input', { type: 'search', placeholder: 'Buscar por título, usuário ou URL', autocomplete: 'off', 'aria-label': 'Buscar' });
   const ctx = { dados, painel, recarregar, aviso };
 
@@ -50,14 +52,13 @@ export async function telaCofre(app) {
   busca.addEventListener('input', pintarLista);
   pintarLista();
   aviso.textContent = '';
-  const gestor = ['owner', 'admin'].includes(estado.usuario.papel);
+  aviso.className = 'status';
+  // "Minha conta", "Pessoas" e "Bloquear" ficam na topbar (casca.js).
   trocar(app,
-    el('h1', {}, 'Cofre'),
-    el('p', {}, el('a', { href: '#/conta' }, 'Minha conta'), gestor ? ' · ' : null, gestor ? el('a', { href: '#/pessoas' }, 'Pessoas') : null, ' · ',
-      botao('Bloquear', 'btn-ghost', () => sair('Cofre bloqueado.'))),
+    titulo,
     aviso,
     senhasATrocar(ctx),
-    el('div', { class: 'form' }, busca),
+    busca,
     painel,
     lista,
     formNovaColecao(ctx));
@@ -81,33 +82,36 @@ function formNovaColecao({ recarregar, aviso }) {
       enviar.disabled = false;
     }
   }
-  return el('section', { class: 'card' }, el('h2', {}, 'Nova coleção'),
+  return el('section', { class: 'card' }, el('h2', { class: 'card-title' }, 'Nova coleção'),
     el('p', { class: 'muted' }, 'Todos os owners ativos da organização recebem acesso de gerência (regra da organização).'),
-    el('form', { class: 'form', onsubmit: criar }, el('label', {}, 'Nome', nome), enviar));
+    el('form', { class: 'form', onsubmit: criar }, el('label', { class: 'field' }, 'Nome', nome), el('div', { class: 'form-actions' }, enviar)));
 }
 
 function rotuloPermissao(permissao) {
-  if (permissao !== 'ver_sem_revelar') return el('span', { class: 'secret-item-sub' }, `Sua permissão: ${permissao}`);
-  return el('span', { class: 'secret-item-sub', title: cofre.AVISO_VER_SEM_REVELAR }, 'Sua permissão: ver sem revelar (?)');
+  if (permissao !== 'ver_sem_revelar') return el('span', { class: 'list-item-meta' }, 'Sua permissão: ', selo(TOM_PERMISSAO, permissao));
+  return el('span', { class: 'list-item-meta', title: cofre.AVISO_VER_SEM_REVELAR }, 'Sua permissão: ', selo(TOM_PERMISSAO, permissao, 'ver sem revelar (?)'));
 }
 
 function secaoColecao(ctx, col, termo) {
   if (col.erro) {
-    return el('section', { class: 'card' }, el('p', { class: 'error-msg' }, 'Coleção ilegível: a chave ou o nome não decifram (possível adulteração).'));
+    return el('section', { class: 'card' }, el('p', { class: 'alert alert-danger' }, 'Coleção ilegível: a chave ou o nome não decifram (possível adulteração).'));
   }
   const { dados, painel, recarregar, aviso } = ctx;
   const itens = buscar(dados.itens.filter((i) => i.colecaoId === col.id), termo);
-  const acoes = el('div', { class: 'secret-item-actions' });
+  // Hierarquia (design system §3.2): Novo item, Membros, "Mais ações" (Lixeira, Renomear) e Excluir coleção no fim.
+  const acoes = el('div', { class: 'action-bar' });
+  const mais = el('ul', { class: 'menu-list', onclick: () => { menu.open = false; } });
+  const menu = el('details', { class: 'menu' }, el('summary', { class: 'btn btn-ghost btn-sm' }, 'Mais ações'), mais);
   if (cofre.pode(col.permissao, 'editar')) {
-    acoes.append(
-      botao('Novo item', 'btn-primary', () => trocar(painel, formItem(ctx, col, null))),
-      botao('Lixeira', 'btn-secondary', () => abrirLixeira(ctx, col)));
+    acoes.append(botao('Novo item', 'btn-primary', () => trocar(painel, formItem(ctx, col, null))));
+    mais.append(el('li', {}, botao('Lixeira', 'btn-ghost', () => abrirLixeira(ctx, col))));
   }
   if (cofre.pode(col.permissao, 'gerenciar')) {
+    mais.append(el('li', {}, botao('Renomear', 'btn-ghost', () => trocar(painel, formRenomear(ctx, col)))));
     acoes.append(
       botao('Membros', 'btn-secondary', () => painelMembros(ctx, col)),
-      botao('Renomear', 'btn-secondary', () => trocar(painel, formRenomear(ctx, col))),
-      botao('Excluir coleção', 'btn-danger', async () => {
+      menu,
+      botao('Excluir coleção', 'btn-danger-outline push-end', async () => {
         if (!window.confirm(`Excluir a coleção "${col.nome}"? Só funciona vazia (inclusive a lixeira).`)) return;
         try {
           await api('DELETE', `/colecoes/${col.id}`);
@@ -116,26 +120,28 @@ function secaoColecao(ctx, col, termo) {
           falhou(aviso, e);
         }
       }));
+  } else if (mais.childElementCount) {
+    acoes.append(menu);
   }
   const linhas = itens.map((i) => (i.erro
-    ? el('li', { class: 'secret-item' }, el('span', { class: 'error-msg' }, 'Item adulterado: não decifra com a chave da coleção.'))
-    : el('li', { class: 'secret-item' },
-      el('div', { class: 'secret-item-main' },
-        el('div', { class: 'secret-item-info' },
-          el('span', { class: 'secret-item-title' }, i.meta.titulo),
-          el('span', { class: 'secret-item-sub' }, [NOMES_TIPO[i.tipo], i.meta.usuario].filter(Boolean).join(' · '))),
-        el('div', { class: 'secret-item-actions' }, botao('Abrir', 'btn-secondary', () => trocar(painel, detalhe(ctx, col, i))))))));
+    ? el('li', { class: 'list-item list-item-error' }, 'Item adulterado: não decifra com a chave da coleção.')
+    : el('li', { class: 'list-item' },
+      el('div', { class: 'list-item-main' },
+        el('div', { class: 'list-item-info' },
+          el('span', { class: 'list-item-title' }, i.meta.titulo),
+          el('span', { class: 'list-item-meta' }, [NOMES_TIPO[i.tipo], i.meta.usuario].filter(Boolean).join(' · '))),
+        el('div', { class: 'list-item-actions' }, botao('Abrir', 'btn-secondary', () => trocar(painel, detalhe(ctx, col, i))))))));
   return el('section', { class: 'card' },
-    el('h2', {}, col.nome), rotuloPermissao(col.permissao),
+    el('div', { class: 'card-header' }, el('div', {}, el('h2', { class: 'card-title' }, col.nome), rotuloPermissao(col.permissao))),
     col.rotacaoPendente && cofre.pode(col.permissao, 'gerenciar') ? bannerRotacao(ctx, col) : null,
-    col.permissao === 'ver_sem_revelar' ? el('p', { class: 'muted' }, cofre.AVISO_VER_SEM_REVELAR) : null,
+    col.permissao === 'ver_sem_revelar' ? el('p', { class: 'alert alert-info' }, cofre.AVISO_VER_SEM_REVELAR) : null,
     acoes,
-    linhas.length ? el('ul', { class: 'secret-list' }, ...linhas) : el('p', { class: 'muted' }, termo ? 'Nada encontrado.' : 'Sem itens.'));
+    linhas.length ? el('ul', { class: 'list' }, ...linhas) : el('div', { class: 'empty' }, termo ? 'Nada encontrado.' : 'Sem itens.'));
 }
 
 function formRenomear({ painel, recarregar }, col) {
   const nome = el('input', { required: true, maxlength: 200, value: col.nome });
-  const erro = el('p', { class: 'error-msg', role: 'alert' });
+  const erro = el('p', { class: 'status status-danger', role: 'alert' });
   async function enviar(ev) {
     ev.preventDefault();
     try {
@@ -145,9 +151,10 @@ function formRenomear({ painel, recarregar }, col) {
       falhou(erro, e);
     }
   }
-  return el('section', { class: 'card' }, el('h2', {}, 'Renomear coleção'),
-    el('form', { class: 'form', onsubmit: enviar }, el('label', {}, 'Nome', nome),
-      el('button', { type: 'submit', class: 'btn btn-primary' }, 'Salvar'), botao('Cancelar', 'btn-ghost', () => trocar(painel)), erro));
+  return el('section', { class: 'card card-accent' }, el('h2', { class: 'card-title' }, 'Renomear coleção'),
+    el('form', { class: 'form', onsubmit: enviar }, el('label', { class: 'field' }, 'Nome', nome),
+      el('div', { class: 'form-actions' },
+        el('button', { type: 'submit', class: 'btn btn-primary' }, 'Salvar'), botao('Cancelar', 'btn-ghost', () => trocar(painel))), erro));
 }
 
 // ---------- item: detalhe, revelar, copiar ----------
@@ -161,10 +168,18 @@ async function revelar(col, item) {
 function detalhe(ctx, col, item) {
   const { painel, recarregar } = ctx;
   const tipo = cofre.TIPOS[item.tipo];
-  const aviso = el('p', { class: 'muted', role: 'status' });
+  const aviso = el('p', { class: 'status', role: 'status' });
   let revelado = null; // só neste painel; trocar(painel) descarta
-  const segredoBox = el('div');
-  const mascarado = () => trocar(segredoBox, ...tipo.segredo.map((k) => el('p', {}, `${ROTULOS[k]}: ••••••••`)));
+  const segredoBox = el('div', { class: 'stack-sm' });
+  // Estado "Visível" (design system §3.12): borda de atenção na caixa e badge no cabeçalho enquanto revelado.
+  const caixa = el('div', { class: 'secret' });
+  const visivel = el('span', { class: 'badge badge-warning', hidden: true }, 'Visível');
+  const mascarado = () => {
+    caixa.classList.remove('is-revealed');
+    visivel.hidden = true;
+    trocar(segredoBox, ...tipo.segredo.map((k) => el('div', { class: 'secret-field' },
+      el('span', { class: 'secret-label' }, `${ROTULOS[k]}:`), el('span', { class: 'secret-value secret-masked' }, '••••••••'))));
+  };
   mascarado();
   const podeVer = cofre.pode(col.permissao, 'ver');
   const semRevelar = podeVer ? {} : { disabled: true, title: cofre.AVISO_VER_SEM_REVELAR };
@@ -176,8 +191,10 @@ function detalhe(ctx, col, item) {
   async function mostrar() {
     try {
       const s = await obter();
-      trocar(segredoBox, ...tipo.segredo.map((k) => el('label', {}, ROTULOS[k],
-        el(k === 'notas' || k === 'conteudo' ? 'textarea' : 'input', { readonly: true, value: s[k] ?? '' }, k === 'notas' || k === 'conteudo' ? (s[k] ?? '') : null))));
+      trocar(segredoBox, ...tipo.segredo.map((k) => el('label', { class: 'field' }, ROTULOS[k],
+        el(k === 'notas' || k === 'conteudo' ? 'textarea' : 'input', { class: 'secret-value', readonly: true, value: s[k] ?? '' }, k === 'notas' || k === 'conteudo' ? (s[k] ?? '') : null))));
+      caixa.classList.add('is-revealed');
+      visivel.hidden = false;
     } catch (e) {
       falhou(aviso, e, 'O segredo não decifra: item adulterado ou movido.');
     }
@@ -187,17 +204,18 @@ function detalhe(ctx, col, item) {
       const valor = (await obter())[PRINCIPAL[item.tipo]] ?? '';
       await cofre.copiarComLimpeza(valor);
       api('POST', `/itens/${item.id}/copiado`).catch(() => {}); // melhor esforço
-      aviso.className = 'ok';
+      aviso.className = 'status status-success';
       aviso.textContent = 'Copiado. O clipboard será limpo em 30 s (se ainda tiver este conteúdo).';
     } catch (e) {
       falhou(aviso, e, 'Não foi possível copiar.');
     }
   }
   const fechar = () => { revelado = null; trocar(painel); };
-  const acoes = el('div', { class: 'secret-item-actions' },
+  caixa.append(segredoBox, el('div', { class: 'secret-actions' },
     botao('Revelar', 'btn-secondary', mostrar, semRevelar),
     botao('Ocultar', 'btn-ghost', () => { revelado = null; mascarado(); }),
-    botao('Copiar', 'btn-secondary', copiar, semRevelar));
+    botao('Copiar', 'btn-secondary', copiar, semRevelar)));
+  const acoes = el('div', { class: 'action-bar' });
   if (podeVer) acoes.append(botao('Histórico', 'btn-secondary', () => historico(ctx, col, item, painelHist)));
   if (cofre.pode(col.permissao, 'editar')) {
     acoes.append(
@@ -207,8 +225,12 @@ function detalhe(ctx, col, item) {
         } catch (e) {
           falhou(aviso, e);
         }
-      }),
-      botao('Excluir', 'btn-danger', async () => {
+      }));
+  }
+  acoes.append(botao('Fechar', 'btn-ghost', fechar));
+  if (cofre.pode(col.permissao, 'editar')) {
+    acoes.append(
+      botao('Excluir', 'btn-danger-outline push-end', async () => {
         if (!window.confirm(`Mover "${item.meta.titulo}" para a lixeira? Fica 30 dias lá.`)) return;
         try {
           await api('DELETE', `/itens/${item.id}`);
@@ -218,14 +240,15 @@ function detalhe(ctx, col, item) {
         }
       }));
   }
-  acoes.append(botao('Fechar', 'btn-ghost', fechar));
-  const painelHist = el('div');
-  return el('section', { class: 'card' },
-    el('h2', {}, item.meta.titulo),
-    el('p', { class: 'muted' }, `${NOMES_TIPO[item.tipo]} · versão ${item.versao} · atualizado ${quando(item.atualizadoEm)}`),
+  const painelHist = el('div', { class: 'stack-sm' });
+  return el('section', { class: 'card card-accent' },
+    el('div', { class: 'card-header' },
+      el('div', {}, el('h2', { class: 'card-title' }, item.meta.titulo),
+        el('p', { class: 'card-subtitle' }, `${NOMES_TIPO[item.tipo]} · versão ${item.versao} · atualizado ${quando(item.atualizadoEm)}`)),
+      visivel),
     ...camposMeta(item.meta),
-    podeVer ? null : el('p', { class: 'muted' }, cofre.AVISO_VER_SEM_REVELAR),
-    segredoBox, acoes, aviso, painelHist);
+    podeVer ? null : el('p', { class: 'alert alert-info' }, cofre.AVISO_VER_SEM_REVELAR),
+    caixa, acoes, aviso, painelHist);
 }
 
 function camposMeta(meta) {
@@ -243,8 +266,8 @@ function camposMeta(meta) {
 function formItem(ctx, col, item, segredoAtual = null) {
   const { painel, recarregar } = ctx;
   const tipoSel = el('select', { disabled: Boolean(item) }, ...Object.entries(NOMES_TIPO).map(([v, t]) => el('option', { value: v, selected: item?.tipo === v }, t)));
-  const campos = el('div');
-  const erro = el('p', { class: 'error-msg', role: 'alert' });
+  const campos = el('div', { class: 'stack' });
+  const erro = el('p', { class: 'status status-danger', role: 'alert' });
   let entradas = {};
   const principalOriginal = segredoAtual?.[PRINCIPAL[item?.tipo]];
 
@@ -259,7 +282,7 @@ function formItem(ctx, col, item, segredoAtual = null) {
       const entrada = multi ? el('textarea', { rows: 3 }, inicial)
         : el('input', { type: segredo ? 'password' : k === 'validade' ? 'date' : 'text', value: inicial, autocomplete: 'off', required: k === 'titulo' });
       entradas[k] = entrada;
-      nos.push(el('label', {}, ROTULOS[k], entrada));
+      nos.push(el('label', { class: 'field' }, ROTULOS[k], entrada));
       if (k === 'senha') nos.push(geradorUi(entrada));
     }
     trocar(campos, ...nos);
@@ -291,15 +314,16 @@ function formItem(ctx, col, item, segredoAtual = null) {
       falhou(erro, e, e.message === 'titulo_obrigatorio' ? 'Informe o título.' : undefined);
     }
   }
-  return el('section', { class: 'card' }, el('h2', {}, item ? 'Editar item' : `Novo item em ${col.nome}`),
-    el('form', { class: 'form', onsubmit: salvar }, el('label', {}, 'Tipo', tipoSel), campos,
-      el('button', { type: 'submit', class: 'btn btn-primary' }, 'Salvar'), botao('Cancelar', 'btn-ghost', () => trocar(painel)), erro));
+  return el('section', { class: 'card card-accent' }, el('h2', { class: 'card-title' }, item ? 'Editar item' : `Novo item em ${col.nome}`),
+    el('form', { class: 'form', onsubmit: salvar }, el('label', { class: 'field' }, 'Tipo', tipoSel), campos,
+      el('div', { class: 'form-actions' },
+        el('button', { type: 'submit', class: 'btn btn-primary' }, 'Salvar'), botao('Cancelar', 'btn-ghost', () => trocar(painel))), erro));
 }
 
 function geradorUi(entrada) {
-  const aviso = el('span', { class: 'secret-item-sub' });
+  const aviso = el('span', { class: 'field-error' });
   const mostrar = () => { entrada.type = entrada.type === 'password' ? 'text' : 'password'; };
-  return el('div', { class: 'secret-item-actions' },
+  return el('div', { class: 'action-bar' },
     botao('Gerar senha (20)', 'btn-secondary', () => { entrada.value = gerarSenha({ tamanho: 20 }); entrada.type = 'text'; }),
     botao('Gerar passphrase (6 palavras)', 'btn-secondary', async () => {
       try {
@@ -315,7 +339,7 @@ function geradorUi(entrada) {
 // ---------- histórico ----------
 
 async function historico(ctx, col, item, alvo) {
-  const aviso = el('p', { class: 'muted', role: 'status' });
+  const aviso = el('p', { class: 'status', role: 'status' });
   let versoes, nomes;
   try {
     versoes = await api('GET', `/itens/${item.id}/versoes`);
@@ -325,7 +349,7 @@ async function historico(ctx, col, item, alvo) {
     return falhou(aviso, e);
   }
   const linhas = versoes.map((v) => {
-    const box = el('div');
+    const box = el('div', { class: 'stack-sm' });
     const ver = async () => {
       try {
         const resp = await api('GET', `/itens/${item.id}/versoes/${encodeURIComponent(v.versao)}`);
@@ -347,19 +371,21 @@ async function historico(ctx, col, item, alvo) {
         }
       })]
       : []);
-    return el('li', { class: 'secret-item' },
-      el('span', {}, `Versão ${v.versao} · por ${nomes.get(v.editado_por) ?? v.editado_por} · ${quando(v.em)} `),
-      botao('Ver', 'btn-secondary', ver), box);
+    return el('li', { class: 'list-item stack-sm' },
+      el('div', { class: 'list-item-main' },
+        el('span', { class: 'list-item-info' }, `Versão ${v.versao} · por ${nomes.get(v.editado_por) ?? v.editado_por} · ${quando(v.em)}`),
+        el('div', { class: 'list-item-actions' }, botao('Ver', 'btn-secondary', ver))),
+      box);
   });
-  trocar(alvo, el('h2', {}, 'Histórico (versões anteriores)'),
-    linhas.length ? el('ul', { class: 'secret-list' }, ...linhas) : el('p', { class: 'muted' }, 'Sem versões anteriores.'), aviso);
+  trocar(alvo, el('h3', {}, 'Histórico (versões anteriores)'),
+    linhas.length ? el('ul', { class: 'list' }, ...linhas) : el('div', { class: 'empty' }, 'Sem versões anteriores.'), aviso);
 }
 
 // ---------- lixeira ----------
 
 async function abrirLixeira(ctx, col) {
   const { painel, recarregar } = ctx;
-  const aviso = el('p', { class: 'muted', role: 'status' });
+  const aviso = el('p', { class: 'status', role: 'status' });
   let itens;
   try {
     const linhas = await api('GET', `/colecoes/${col.id}/lixeira`);
@@ -376,16 +402,18 @@ async function abrirLixeira(ctx, col) {
       falhou(aviso, e);
     }
   });
-  const linhas = itens.map((i) => el('li', { class: 'secret-item' },
-    el('span', {}, `${i.meta?.titulo ?? 'Item adulterado'} · excluído ${quando(i.excluidoEm)} `),
-    acao('Restaurar', 'btn-secondary', () => api('POST', `/itens/${encodeURIComponent(i.id)}/restaurar`)),
-    cofre.pode(col.permissao, 'gerenciar')
-      ? acao('Apagar definitivo', 'btn-danger', () => (window.confirm('Apagar de vez este item e o histórico dele?') ? api('DELETE', `/itens/${encodeURIComponent(i.id)}/definitivo`) : null))
-      : null));
-  trocar(painel, el('section', { class: 'card' }, el('h2', {}, `Lixeira de ${col.nome}`),
+  const linhas = itens.map((i) => el('li', { class: i.meta ? 'list-item' : 'list-item list-item-error' },
+    el('div', { class: 'list-item-main' },
+      el('span', { class: 'list-item-info' }, `${i.meta?.titulo ?? 'Item adulterado'} · excluído ${quando(i.excluidoEm)}`),
+      el('div', { class: 'list-item-actions' },
+        acao('Restaurar', 'btn-secondary', () => api('POST', `/itens/${encodeURIComponent(i.id)}/restaurar`)),
+        cofre.pode(col.permissao, 'gerenciar')
+          ? acao('Apagar definitivo', 'btn-danger-outline', () => (window.confirm('Apagar de vez este item e o histórico dele?') ? api('DELETE', `/itens/${encodeURIComponent(i.id)}/definitivo`) : null))
+          : null))));
+  trocar(painel, el('section', { class: 'card card-accent' }, el('h2', { class: 'card-title' }, `Lixeira de ${col.nome}`),
     el('p', { class: 'muted' }, 'Itens ficam 30 dias na lixeira e depois são apagados.'),
-    linhas.length ? el('ul', { class: 'secret-list' }, ...linhas) : el('p', { class: 'muted' }, 'Lixeira vazia.'),
-    aviso, botao('Fechar', 'btn-ghost', () => trocar(painel))));
+    linhas.length ? el('ul', { class: 'list' }, ...linhas) : el('div', { class: 'empty' }, 'Lixeira vazia.'),
+    aviso, el('div', { class: 'action-bar' }, botao('Fechar', 'btn-ghost', () => trocar(painel)))));
 }
 
 // ---------- Fase 7: senhas a trocar, rotação, membros ----------
@@ -395,18 +423,18 @@ function senhasATrocar(ctx) {
   const { dados, painel } = ctx;
   const pendentes = dados.itens.filter((i) => i.rotacaoSenhaPendente && !i.erro && dados.colecoes.get(i.colecaoId)?.chave);
   if (!pendentes.length) return null;
-  return el('section', { class: 'card' },
-    el('h2', {}, `Senhas a trocar (${pendentes.length})`),
+  return el('section', { class: 'card card-accent' },
+    el('h2', { class: 'card-title' }, `Senhas a trocar (${pendentes.length})`),
     el('p', { class: 'muted' },
       'Alguém que tinha acesso a estes itens saiu. Troque a senha/valor no sistema de origem e depois edite o item com o valor novo.'),
-    el('ul', { class: 'secret-list' }, ...pendentes.map((i) => {
+    el('ul', { class: 'list' }, ...pendentes.map((i) => {
       const col = dados.colecoes.get(i.colecaoId);
-      return el('li', { class: 'secret-item' },
-        el('div', { class: 'secret-item-main' },
-          el('div', { class: 'secret-item-info' },
-            el('span', { class: 'secret-item-title' }, i.meta.titulo),
-            el('span', { class: 'secret-item-sub' }, `${col.nome} · ${NOMES_TIPO[i.tipo]}`)),
-          el('div', { class: 'secret-item-actions' }, botao('Abrir', 'btn-secondary', () => trocar(painel, detalhe(ctx, col, i))))));
+      return el('li', { class: 'list-item' },
+        el('div', { class: 'list-item-main' },
+          el('div', { class: 'list-item-info' },
+            el('span', { class: 'list-item-title' }, i.meta.titulo),
+            el('span', { class: 'list-item-meta' }, `${col.nome} · ${NOMES_TIPO[i.tipo]}`)),
+          el('div', { class: 'list-item-actions' }, botao('Abrir', 'btn-secondary', () => trocar(painel, detalhe(ctx, col, i))))));
     })));
 }
 
@@ -417,7 +445,7 @@ const CONFLITOS_ROTACAO = ['chave_ver_desatualizada', 'conflito_versao', 'rotaca
  * mostra quem vai receber a chave nova, com o fingerprint; só "Confirmar rotação" recifra e envia.
  */
 function bannerRotacao({ recarregar, dados: aberto }, col) {
-  const aviso = el('p', { class: 'muted', role: 'status' });
+  const aviso = el('p', { class: 'status', role: 'status' });
   const confirmacao = el('div');
   const pedir = (m, c, corpo) => api(m, c, corpo);
   function erro(e) {
@@ -437,7 +465,7 @@ function bannerRotacao({ recarregar, dados: aberto }, col) {
   }
   const executar = botao('Rotacionar a chave agora', 'btn-primary', async () => {
     executar.disabled = true;
-    aviso.className = 'muted';
+    aviso.className = 'status status-busy';
     aviso.textContent = 'Buscando a coleção para a rotação…';
     let preparo;
     try {
@@ -448,7 +476,7 @@ function bannerRotacao({ recarregar, dados: aberto }, col) {
     aviso.textContent = '';
     const confirmar = botao('Confirmar rotação', 'btn-primary', async () => {
       confirmar.disabled = true;
-      aviso.className = 'muted';
+      aviso.className = 'status status-busy';
       aviso.textContent = 'Recifrando a coleção com uma chave nova…';
       try {
         await cofre.concluirRotacao({ eu: eu(), colecao: col, pedir, preparo });
@@ -459,14 +487,15 @@ function bannerRotacao({ recarregar, dados: aberto }, col) {
     });
     trocar(confirmacao, el('div', { class: 'card', id: 'rotacao-destinatarios' },
       el('h3', {}, `A chave nova vai para ${preparo.destinatarios.length} pessoa(s):`),
-      el('ul', {}, ...preparo.destinatarios.map((d) => el('li', {},
+      el('ul', { class: 'list list-divided' }, ...preparo.destinatarios.map((d) => el('li', { class: 'list-item' },
         `${d.voce ? 'Você' : `${d.nome ?? '(sem nome)'} <${d.email ?? d.id}>`}${d.estado === 'suspenso' ? ' · suspensa (recebe a chave para não perder a coleção ao ser reativada)' : ''} · `,
-        el('code', {}, d.fingerprint)))),
+        el('code', { class: 'fingerprint' }, d.fingerprint)))),
       el('p', { class: 'muted' }, 'Confira se a lista é a esperada: quem não está nela perde o acesso à coleção.'),
-      confirmar,
-      botao('Cancelar', 'btn-ghost', () => { trocar(confirmacao); executar.disabled = false; })));
+      el('div', { class: 'action-bar' },
+        confirmar,
+        botao('Cancelar', 'btn-ghost', () => { trocar(confirmacao); executar.disabled = false; }))));
   });
-  return el('div', { class: 'alert alert-warning', role: 'alert' },
+  return el('div', { class: 'alert alert-warning stack-sm', role: 'alert' },
     el('p', {}, 'Rotação pendente: alguém perdeu o acesso a esta coleção e ainda tem a chave antiga. '
       + 'Rotacionar gera uma chave nova, recifra nome, itens (inclusive lixeira) e histórico e entrega a chave só aos membros atuais.'),
     executar, confirmacao, aviso);
@@ -476,7 +505,7 @@ const nomeDe = (p) => (p ? `${p.nome ?? '(sem nome)'} <${p.email}>` : '(pessoa r
 
 async function painelMembros(ctx, col) {
   const { painel } = ctx;
-  const aviso = el('p', { class: 'muted', role: 'status' });
+  const aviso = el('p', { class: 'status', role: 'status' });
   let membros, pessoas;
   try {
     [membros, pessoas] = await Promise.all([api('GET', `/colecoes/${col.id}/membros`), api('GET', '/membros')]);
@@ -499,7 +528,7 @@ async function painelMembros(ctx, col) {
         falhou(aviso, e);
       }
     }, { disabled: owner });
-    const remover = botao('Remover', 'btn-danger', async () => {
+    const remover = botao('Remover', 'btn-danger-outline', async () => {
       if (!window.confirm(`Remover ${nomeDe(p)} desta coleção? Ela continua sabendo o que já viu: a coleção vai pedir rotação da chave e todos os itens ficam em "Senhas a trocar".`)) return;
       try {
         await api('DELETE', `/colecoes/${col.id}/membros/${encodeURIComponent(m.usuario_id)}`);
@@ -508,25 +537,27 @@ async function painelMembros(ctx, col) {
         falhou(aviso, e);
       }
     }, { disabled: owner });
-    return el('li', { class: 'secret-item' },
-      el('span', {}, `${nomeDe(p)}${owner ? ' · owner (sempre gerenciar)' : ''}`), sel, salvar, remover);
+    return el('li', { class: 'list-item' },
+      el('div', { class: 'list-item-main' },
+        el('span', { class: 'list-item-info list-item-title' }, `${nomeDe(p)}${owner ? ' · owner (sempre gerenciar)' : ''}`),
+        el('div', { class: 'list-item-actions' }, sel, salvar, remover)));
   });
-  trocar(painel, el('section', { class: 'card' }, el('h2', {}, `Membros de ${col.nome}`),
-    el('ul', { class: 'secret-list' }, ...linhas), aviso,
+  trocar(painel, el('section', { class: 'card card-accent' }, el('h2', { class: 'card-title' }, `Membros de ${col.nome}`),
+    el('ul', { class: 'list' }, ...linhas), aviso,
     formAdicionarMembro(ctx, col, pessoas.filter((p) => cofre.podeReceberAcesso(p) && !membros.some((m) => m.usuario_id === p.id)), reabrir),
-    botao('Fechar', 'btn-ghost', () => trocar(painel))));
+    el('div', { class: 'action-bar' }, botao('Fechar', 'btn-ghost', () => trocar(painel)))));
 }
 
 /** Só pessoas ativas com fingerprint confirmado; a chave pública é conferida contra ele antes de envelopar. */
 function formAdicionarMembro(ctx, col, candidatos, reabrir) {
   if (!candidatos.length) return el('p', { class: 'muted' }, 'Ninguém mais pode receber acesso (só pessoas ativas com fingerprint confirmado).');
   const pessoa = el('select', { 'aria-label': 'Pessoa' }, ...candidatos.map((p) => el('option', { value: p.id }, nomeDe(p))));
-  const fp = el('code', {});
+  const fp = el('code', { class: 'fingerprint' });
   const mostrarFp = () => { fp.textContent = candidatos.find((p) => p.id === pessoa.value)?.fingerprint_confirmado ?? ''; };
   pessoa.addEventListener('change', mostrarFp);
   mostrarFp();
   const permissao = el('select', { 'aria-label': 'Permissão' }, ...cofre.PERMISSOES.map((v) => el('option', { value: v, selected: v === 'ver' }, v)));
-  const erro = el('p', { class: 'error-msg', role: 'alert' });
+  const erro = el('p', { class: 'status status-danger', role: 'alert' });
   async function enviar(ev) {
     ev.preventDefault();
     try {
@@ -545,8 +576,8 @@ function formAdicionarMembro(ctx, col, candidatos, reabrir) {
   }
   return el('form', { class: 'form', onsubmit: enviar },
     el('h3', {}, 'Dar acesso'),
-    el('label', {}, 'Pessoa', pessoa),
+    el('label', { class: 'field' }, 'Pessoa', pessoa),
     el('p', { class: 'muted' }, 'Fingerprint confirmado: ', fp),
-    el('label', {}, 'Permissão', permissao),
-    el('button', { type: 'submit', class: 'btn btn-primary' }, 'Dar acesso'), erro);
+    el('label', { class: 'field' }, 'Permissão', permissao),
+    el('div', { class: 'form-actions' }, el('button', { type: 'submit', class: 'btn btn-primary' }, 'Dar acesso')), erro);
 }

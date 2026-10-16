@@ -6,36 +6,38 @@ import { el, trocar } from '../dom.js';
 import { estado } from '../estado.js';
 import { fingerprintConfere, fingerprintDoMembro } from '../fluxos.js';
 import { sair } from '../sessao.js';
+import { selo, TOM_ESTADO, TOM_PAPEL } from '../casca.js';
 
 function falhou(aviso, e) {
   if (e instanceof ErroApi && e.codigo === 'nao_autenticado') return sair(mensagem(e));
-  aviso.className = 'error-msg';
+  aviso.className = 'status status-danger';
   aviso.textContent = e instanceof ErroApi ? mensagem(e) : 'Não foi possível concluir a ação.';
 }
 
 export async function telaPessoas(app) {
   const eu = estado.usuario;
   if (!eu) return location.replace('#/login');
-  const voltar = el('p', {}, el('a', { href: '#/conta' }, '← Minha conta'), ' · ', el('a', { href: '#/auditoria' }, 'Auditoria'));
   if (!['owner', 'admin'].includes(eu.papel)) {
-    return trocar(app, el('h1', {}, 'Pessoas'), voltar, el('p', { class: 'error-msg' }, mensagem(new ErroApi(403, 'sem_permissao'))));
+    return trocar(app, titulo(), el('p', { class: 'alert alert-danger' }, mensagem(new ErroApi(403, 'sem_permissao'))));
   }
-  const aviso = el('p', { class: 'muted', role: 'status' });
+  const aviso = el('p', { class: 'status', role: 'status' });
   let membros;
   try {
     membros = await api('GET', '/membros');
   } catch (e) {
-    trocar(app, el('h1', {}, 'Pessoas'), voltar, aviso);
+    trocar(app, titulo(), aviso);
     return falhou(aviso, e);
   }
   const recarregar = () => telaPessoas(app);
   const relatorio = el('div', { id: 'relatorio-saida' });
   const linhas = await Promise.all(membros.map((m) => linhaMembro(m, eu, aviso, recarregar, relatorio)));
-  trocar(app, el('h1', {}, 'Pessoas'), voltar,
+  trocar(app, titulo(),
     secaoConvite(recarregar),
     relatorio,
-    el('section', { class: 'card' }, el('h2', {}, 'Membros'), aviso, el('ul', { class: 'secret-list' }, ...linhas)));
+    el('section', { class: 'card' }, el('h2', { class: 'card-title' }, 'Membros'), aviso, el('ul', { class: 'list' }, ...linhas)));
 }
+
+const titulo = () => el('div', { class: 'page-header' }, el('h1', {}, 'Pessoas'));
 
 // ---------- Convite ----------
 
@@ -43,7 +45,7 @@ function secaoConvite(recarregar) {
   const email = el('input', { type: 'email', required: true, autocomplete: 'off' });
   const papel = el('select', {}, el('option', { value: 'member' }, 'member'), el('option', { value: 'admin' }, 'admin'));
   const botao = el('button', { type: 'submit', class: 'btn btn-primary' }, 'Convidar');
-  const aviso = el('p', { class: 'muted', role: 'status' });
+  const aviso = el('p', { class: 'status', role: 'status' });
   const resultado = el('div');
   async function convidar(ev) {
     ev.preventDefault();
@@ -56,18 +58,20 @@ function secaoConvite(recarregar) {
       trocar(resultado,
         el('div', { class: 'alert alert-warning', role: 'alert' },
           'Este link aparece só agora. Entregue-o por um canal seguro (pessoalmente, chat corporativo) e depois confira o fingerprint com a pessoa.'),
-        el('div', { class: 'id-display' }, el('code', {}, link),
+        el('div', { class: 'code-block' }, el('code', {}, link),
           el('button', { type: 'button', class: 'btn btn-secondary btn-sm', onclick: () => navigator.clipboard?.writeText(link).catch(() => {}) }, 'Copiar')),
-        el('button', { type: 'button', class: 'btn btn-secondary', onclick: recarregar }, 'Entreguei o link'));
+        el('div', { class: 'action-bar' }, el('button', { type: 'button', class: 'btn btn-secondary', onclick: recarregar }, 'Entreguei o link')));
     } catch (e) {
       falhou(aviso, e);
     } finally {
       botao.disabled = false;
     }
   }
-  return el('section', { class: 'card' }, el('h2', {}, 'Convidar pessoa'),
-    el('form', { class: 'form', onsubmit: convidar }, el('label', {}, 'E-mail', email), el('label', {}, 'Papel', papel), botao, aviso),
-    resultado);
+  return el('section', { class: 'card' }, el('h2', { class: 'card-title' }, 'Convidar pessoa'),
+    el('form', { class: 'form', onsubmit: convidar },
+      el('label', { class: 'field' }, 'E-mail', email), el('label', { class: 'field' }, 'Papel', papel),
+      el('div', { class: 'form-actions' }, botao), aviso),
+    el('div', { class: 'stack-sm' }, resultado));
 }
 
 // ---------- Um membro ----------
@@ -92,7 +96,7 @@ async function envelopesOwner(alvo, { soFaltantes = false } = {}) {
 
 function falhaEnvelopes(aviso, e) {
   if (e instanceof ErroApi) return falhou(aviso, e);
-  aviso.className = 'error-msg';
+  aviso.className = 'status status-danger';
   aviso.textContent = {
     chave_publica_divergente: 'A chave pública desta pessoa não confere com o fingerprint confirmado. Não continue.',
     fingerprint_nao_confirmado: 'Esta pessoa ainda não teve o fingerprint confirmado.',
@@ -104,12 +108,12 @@ function falhaEnvelopes(aviso, e) {
 function mostrarRelatorio(alvo, m, relatorio) {
   const nomes = estado.cofre?.colecoes;
   const itens = relatorio.reduce((n, r) => n + r.itens.length, 0);
-  trocar(alvo, el('section', { class: 'card' },
-    el('h2', {}, `Relatório de saída: ${m.email}`),
+  trocar(alvo, el('section', { class: 'card card-accent' },
+    el('h2', { class: 'card-title' }, `Relatório de saída: ${m.email}`),
     el('p', {}, relatorio.length
       ? `Alcançava ${relatorio.length} coleção(ões) e ${itens} item(ns), inclusive lixeira. Elas ficaram com rotação pendente e os itens em "Senhas a trocar" no Cofre.`
       : 'Não alcançava nenhuma coleção.'),
-    relatorio.length ? el('ul', {}, ...relatorio.map((r) => el('li', {},
+    relatorio.length ? el('ul', { class: 'list list-divided' }, ...relatorio.map((r) => el('li', { class: 'list-item' },
       `${nomes?.get(r.colecao_id)?.nome ?? r.colecao_id}: ${r.itens.length} item(ns)`))) : null,
     el('p', { class: 'muted' }, 'Quem gerencia cada coleção vê o aviso de rotação ao abrir o Cofre.')));
 }
@@ -117,12 +121,12 @@ function mostrarRelatorio(alvo, m, relatorio) {
 async function linhaMembro(m, eu, aviso, recarregar, relatorio) {
   const souEu = m.id === eu.id;
   const podeMexer = !souEu && (m.papel !== 'owner' || eu.papel === 'owner');
-  const acoes = el('div', { class: 'secret-item-actions' });
-  const li = el('li', { class: 'secret-item' },
-    el('div', { class: 'secret-item-main' },
-      el('div', { class: 'secret-item-info' },
-        el('span', { class: 'secret-item-title' }, `${m.nome ?? '(sem nome)'}${souEu ? ' (você)' : ''}`),
-        el('span', { class: 'secret-item-sub' }, `${m.email} · ${m.papel} · ${m.estado}`)),
+  const acoes = el('div', { class: 'list-item-actions' });
+  const li = el('li', { class: 'list-item stack-sm' },
+    el('div', { class: 'list-item-main' },
+      el('div', { class: 'list-item-info' },
+        el('span', { class: 'list-item-title' }, `${m.nome ?? '(sem nome)'}${souEu ? ' (você)' : ''}`),
+        el('span', { class: 'list-item-meta' }, `${m.email} · `, selo(TOM_PAPEL, m.papel), ' · ', selo(TOM_ESTADO, m.estado))),
       acoes));
 
   async function agir(metodo, caminho, corpo, pergunta) {
@@ -169,7 +173,7 @@ async function linhaMembro(m, eu, aviso, recarregar, relatorio) {
     acoes.append(botao(`Tornar ${outro}`, 'btn-secondary', () => agir('PUT', `${url}/papel`, { papel: outro },
       `Mudar o papel de ${m.email} para ${outro}?`)));
   }
-  acoes.append(botao('Remover', 'btn-danger', async () => {
+  acoes.append(botao('Remover', 'btn-danger-outline', async () => {
     if (!window.confirm(`Remover ${m.email}? O acesso é cortado, as coleções dela pedem rotação e o nome/e-mail são anonimizados. Não dá para desfazer.`)) return;
     try {
       const r = await api('DELETE', url);
@@ -188,12 +192,12 @@ async function conferir(li, m, aviso, recarregar) {
   try {
     calculado = await fingerprintDoMembro(m);
   } catch {
-    aviso.className = 'error-msg';
+    aviso.className = 'status status-danger';
     aviso.textContent = 'A chave pública recebida do servidor é inválida. Não confirme esta pessoa.';
     return;
   }
   const ditado = el('input', { required: true, autocomplete: 'off', spellcheck: 'false', maxlength: 80 });
-  const erro = el('p', { class: 'error-msg', role: 'alert' });
+  const erro = el('p', { class: 'status status-danger', role: 'alert' });
   const botao = el('button', { type: 'submit', class: 'btn btn-primary' }, 'Confirmar');
   async function enviar(ev) {
     ev.preventDefault();
@@ -212,9 +216,9 @@ async function conferir(li, m, aviso, recarregar) {
   }
   li.append(el('form', { class: 'form', onsubmit: enviar },
     el('p', {}, 'Fingerprint calculado neste navegador a partir da chave pública de ', el('strong', {}, m.email), ':'),
-    el('div', { class: 'id-display' }, el('code', {}, calculado)),
+    el('div', { class: 'code-block fingerprint' }, el('code', {}, calculado)),
     el('p', { class: 'muted' },
       'Peça para a pessoa ler o fingerprint mostrado em "Minha conta" dela, por voz ou chat (fora deste sistema), e digite o que ela ditar.'),
-    el('label', {}, 'Fingerprint ditado pela pessoa', ditado), botao, erro));
+    el('label', { class: 'field' }, 'Fingerprint ditado pela pessoa', ditado), el('div', { class: 'form-actions' }, botao), erro));
   ditado.focus();
 }

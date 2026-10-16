@@ -34,11 +34,11 @@ export function consulta(filtros, antesDeId = null) {
 export async function telaAuditoria(app) {
   const eu = estado.usuario;
   if (!eu) return location.replace('#/login');
-  const voltar = el('p', {}, el('a', { href: '#/conta' }, '← Minha conta'), ' · ', el('a', { href: '#/pessoas' }, 'Pessoas'));
+  const titulo = el('div', { class: 'page-header' }, el('h1', {}, 'Auditoria')); // navegação na topbar (casca.js)
   if (!['owner', 'admin'].includes(eu.papel)) {
-    return trocar(app, el('h1', {}, 'Auditoria'), voltar, el('p', { class: 'error-msg' }, mensagem(new ErroApi(403, 'sem_permissao'))));
+    return trocar(app, titulo, el('p', { class: 'alert alert-danger' }, mensagem(new ErroApi(403, 'sem_permissao'))));
   }
-  const aviso = el('p', { class: 'muted', role: 'status' });
+  const aviso = el('p', { class: 'status', role: 'status' });
   let pessoas = [];
   try {
     pessoas = await api('GET', '/membros');
@@ -59,7 +59,8 @@ export async function telaAuditoria(app) {
   let cursor = null;
 
   const linha = (e) => el('tr', {},
-    el('td', {}, String(e.id)), el('td', {}, quando(e.em)), el('td', {}, e.tipo), el('td', {}, e.resultado),
+    el('td', { class: 'num' }, String(e.id)), el('td', { class: 'nowrap' }, quando(e.em)), el('td', {}, e.tipo),
+    el('td', {}, el('span', { class: e.resultado === 'ok' ? 'badge badge-success' : 'badge badge-danger' }, e.resultado)),
     el('td', {}, e.ator_id ? (nomes.get(e.ator_id) ?? e.ator_id) : '—'),
     el('td', {}, e.alvo_id ? `${e.alvo_tipo ?? ''} ${nomes.get(e.alvo_id) ?? e.alvo_id}`.trim() : '—'),
     el('td', {}, e.ip ?? '—'),
@@ -75,28 +76,30 @@ export async function telaAuditoria(app) {
       corpo.append(...eventos.map(linha));
       cursor = eventos.at(-1)?.id ?? cursor;
       mais.hidden = eventos.length < LIMITE;
-      aviso.className = 'muted';
+      aviso.className = 'status';
       aviso.textContent = corpo.childElementCount ? `${corpo.childElementCount} evento(s).` : 'Nenhum evento com esses filtros.';
     } catch (e) {
       if (e instanceof ErroApi && e.codigo === 'nao_autenticado') return sair(mensagem(e));
-      aviso.className = 'error-msg';
+      aviso.className = 'status status-danger';
       aviso.textContent = e instanceof ErroApi ? mensagem(e) : 'Não foi possível carregar a auditoria.';
     } finally {
       mais.disabled = false;
     }
   }
   mais.addEventListener('click', () => carregar(false));
-  const form = el('form', { class: 'form', onsubmit: (ev) => { ev.preventDefault(); carregar(true); } },
+  const form = el('form', { class: 'form form-wide', onsubmit: (ev) => { ev.preventDefault(); carregar(true); } },
     el('datalist', { id: 'tipos-evento' }, ...TIPOS_EVENTO.map((t) => el('option', { value: t }))),
-    el('label', {}, 'Tipo', campos.tipo), el('label', {}, 'Pessoa', campos.ator_id), el('label', {}, 'Alvo', campos.alvo_id),
-    el('label', {}, 'De', campos.de), el('label', {}, 'Até', campos.ate),
-    el('button', { type: 'submit', class: 'btn btn-primary' }, 'Filtrar'));
-  trocar(app, el('h1', {}, 'Auditoria'), voltar,
+    el('div', { class: 'form-grid' },
+      el('label', { class: 'field' }, 'Tipo', campos.tipo), el('label', { class: 'field' }, 'Pessoa', campos.ator_id),
+      el('label', { class: 'field' }, 'Alvo', campos.alvo_id),
+      el('label', { class: 'field' }, 'De', campos.de), el('label', { class: 'field' }, 'Até', campos.ate)),
+    el('div', { class: 'form-actions' }, el('button', { type: 'submit', class: 'btn btn-primary' }, 'Filtrar')));
+  trocar(app, titulo,
     el('section', { class: 'card' }, form),
     el('section', { class: 'card' }, aviso,
-      el('div', { class: 'tabela' }, el('table', { id: 'auditoria' },
+      el('div', { class: 'table-wrap', tabindex: 0, role: 'region', 'aria-label': 'Eventos de auditoria' }, el('table', { id: 'auditoria', class: 'table' },
         el('thead', {}, el('tr', {}, ...['#', 'Quando', 'Tipo', 'Resultado', 'Quem', 'Alvo', 'IP', 'Detalhes'].map((t) => el('th', {}, t)))),
         corpo)),
-      mais));
+      el('div', { class: 'action-bar' }, mais)));
   await carregar(true);
 }

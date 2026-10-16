@@ -29,6 +29,11 @@ export function pintarCasca(rota) {
       link('conta', 'Minha conta')),
     el('div', { class: 'topbar-actions' },
       el('span', { class: 'topbar-user' }, u.nome ?? u.email ?? ''),
-      u.papel ? el('span', { class: TOM_PAPEL[u.papel] ?? 'badge' }, u.papel) : null,
+      u.papel ? selo(TOM_PAPEL, u.papel) : null,
       el('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => sair('Cofre bloqueado.') }, 'Bloquear')));
 }
+
+// Badges (design system §3.8): o texto é sempre o próprio valor; a classe só dá o tom.
+export const TOM_ESTADO = { ativo: 'badge badge-success', aceito: 'badge badge-warning', suspenso: 'badge badge-danger' };
+export const TOM_PERMISSAO = { gerenciar: 'badge badge-accent', editar: 'badge badge-info', ver_sem_revelar: 'badge badge-warning' };
+export const selo = (tons, valor, texto = valor) => el('span', { class: tons[valor] ?? 'badge' }, texto);

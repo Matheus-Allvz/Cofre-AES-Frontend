@@ -284,7 +284,7 @@ O dourado puro `#c9a227` sobre branco tem 2.42, por isso no tema claro ele só a
 
 ## 5. Tabela de migração (para o construtor)
 
-As classes antigas continuam funcionando como aliases (marcadas `/* legado */` no CSS). Depois de migrar todas as telas, apague os aliases: `grep -n legado public/css/style.css`.
+As classes antigas funcionaram como aliases (`/* legado */` no CSS) durante a migração. Com todas as telas migradas, os aliases foram apagados: as classes da coluna "Hoje" não têm mais estilo.
 
 | Hoje | Onde | Novo | Observação |
 |---|---|---|---|
