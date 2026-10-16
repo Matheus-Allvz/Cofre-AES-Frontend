@@ -8,6 +8,7 @@ import { telaPessoas } from './telas/pessoas.js';
 import { telaCofre } from './telas/cofre.js';
 import { telaAuditoria } from './telas/auditoria.js';
 import { lerRota } from './rota.js';
+import { pintarCasca } from './casca.js';
 
 const app = document.getElementById('app');
 
@@ -15,16 +16,16 @@ async function statusApi() {
   try {
     const r = await fetch('/api/saude', { cache: 'no-store', signal: AbortSignal.timeout(5000) });
     const corpo = r.ok ? await r.json() : null;
-    if (corpo?.status === 'ok') return el('p', { class: 'ok' }, 'API: ok');
-    return el('p', { class: 'error-msg' }, `API indisponível (HTTP ${r.status}). Tente novamente em instantes.`);
+    if (corpo?.status === 'ok') return el('p', { class: 'status status-success' }, 'API: ok');
+    return el('p', { class: 'alert alert-danger' }, `API indisponível (HTTP ${r.status}). Tente novamente em instantes.`);
   } catch {
-    return el('p', { class: 'error-msg' }, 'API fora do ar ou inacessível. Tente novamente em instantes.');
+    return el('p', { class: 'alert alert-danger' }, 'API fora do ar ou inacessível. Tente novamente em instantes.');
   }
 }
 
 // Diagnóstico do KDF (só com ?diag=1): mede derivarMasterKey com os parâmetros de produção.
 function diagnostico() {
-  const saida = el('p', { class: 'muted' });
+  const saida = el('p', { class: 'status', role: 'status' });
   const botao = el('button', {
     class: 'btn btn-secondary',
     onclick: async () => {
@@ -51,9 +52,10 @@ function diagnostico() {
 // Roteador por location.hash: #/convite/<token>, #/cofre, #/conta, #/pessoas, #/auditoria, #/recuperar, resto → #/login.
 function rotear() {
   const { rota, param } = lerRota(location.hash);
+  pintarCasca(rota); // só a topbar e a largura do <main>; o roteamento abaixo não muda
   if (rota === 'convite') {
     if (param) return telaConvite(app, param);
-    return trocar(app, el('h1', {}, 'Convite'), el('p', { class: 'error-msg', role: 'alert' }, 'Convite inválido. Confira o link recebido.'));
+    return trocar(app, el('h1', {}, 'Convite'), el('p', { class: 'alert alert-danger', role: 'alert' }, 'Convite inválido. Confira o link recebido.'));
   }
   if (rota === 'cofre') return telaCofre(app);
   if (rota === 'conta') return telaConta(app);
