@@ -5,6 +5,7 @@ import { baixarTexto, el, trocar } from '../dom.js';
 import { estado } from '../estado.js';
 import { authHashDaSenha, montarTrocaSenha, textoCodigosMfa } from '../fluxos.js';
 import { sair } from '../sessao.js';
+import { selo, TOM_ESTADO, TOM_PAPEL } from '../casca.js';
 
 const pintar = () => new Promise((ok) => setTimeout(ok, 50)); // D7
 const senhaInput = (auto = 'current-password') => el('input', { type: 'password', required: true, autocomplete: auto });
@@ -14,7 +15,7 @@ const quando = (iso) => new Date(iso).toLocaleString('pt-BR');
 /** Erro de API → texto no `aviso`; sessão que caiu volta ao login. */
 function falhou(aviso, e, texto = 'Não foi possível concluir a ação.') {
   if (e instanceof ErroApi && e.codigo === 'nao_autenticado') return sair(mensagem(e));
-  aviso.className = 'error-msg';
+  aviso.className = 'status status-danger';
   aviso.textContent = e instanceof ErroApi ? mensagem(e) : texto;
 }
 
@@ -43,23 +44,24 @@ export async function telaConta(app) {
 
   const cabecalho = el('section', { class: 'card' },
     el('p', {}, `${u.nome} · ${u.email}`),
-    el('p', { class: 'muted' }, `Papel: ${u.papel} · Estado: ${u.estado}`),
-    u.estado === 'aceito' ? el('p', { class: 'muted' }, 'Aguardando o administrador conferir seu fingerprint para ativar a conta.') : null,
+    el('p', { class: 'muted' }, 'Papel: ', selo(TOM_PAPEL, u.papel), ' · Estado: ', selo(TOM_ESTADO, u.estado)),
+    u.estado === 'aceito' ? el('p', { class: 'alert alert-info' }, 'Aguardando o administrador conferir seu fingerprint para ativar a conta.') : null,
     el('p', { class: 'muted' }, 'Seu fingerprint (dite ao administrador quando ele pedir, por voz ou chat):'),
-    el('div', { class: 'id-display' }, el('code', {}, await fingerprint(estado.publica))),
-    u.estado === 'ativo' ? el('p', {}, el('a', { href: '#/cofre' }, 'Cofre →')) : null,
-    gestor ? el('p', {}, el('a', { href: '#/pessoas' }, 'Pessoas da organização →')) : null,
-    gestor ? el('p', {}, el('a', { href: '#/auditoria' }, 'Auditoria →')) : null,
-    el('button', { type: 'button', class: 'btn btn-secondary', onclick: () => sair() }, 'Sair'));
+    el('div', { class: 'code-block fingerprint' }, el('code', {}, await fingerprint(estado.publica))),
+    el('div', { class: 'cluster' },
+      u.estado === 'ativo' ? el('a', { class: 'back-link', href: '#/cofre' }, 'Cofre →') : null,
+      gestor ? el('a', { class: 'back-link', href: '#/pessoas' }, 'Pessoas da organização →') : null,
+      gestor ? el('a', { class: 'back-link', href: '#/auditoria' }, 'Auditoria →') : null),
+    el('div', { class: 'action-bar' }, el('button', { type: 'button', class: 'btn btn-secondary', onclick: () => sair() }, 'Sair')));
 
   if (perfil.mfa_pendente) {
     // Política exige MFA: o servidor só libera /eu, /eu/mfa/* e /logout até configurar.
-    trocar(app, el('h1', {}, 'Minha conta'), cabecalho,
+    trocar(app, el('div', { class: 'page-header' }, el('h1', {}, 'Minha conta')), cabecalho,
       el('div', { class: 'alert alert-warning', role: 'alert' }, 'A política da organização exige MFA. Configure o app autenticador para continuar.'),
       secaoMfa(perfil, recarregar));
     return;
   }
-  trocar(app, el('h1', {}, 'Minha conta'), cabecalho,
+  trocar(app, el('div', { class: 'page-header' }, el('h1', {}, 'Minha conta')), cabecalho,
     secaoMfa(perfil, recarregar),
     await secaoSessoes(),
     await secaoMeusEventos(),
@@ -71,7 +73,7 @@ export async function telaConta(app) {
 
 function secaoMfa(perfil, recarregar) {
   const sec = el('section', { class: 'card' }, el('h2', {}, 'Verificação em duas etapas (MFA)'));
-  const aviso = el('p', { class: 'muted', role: 'status' });
+  const aviso = el('p', { class: 'status', role: 'status' });
   if (!perfil.mfa_ativo) {
     const botao = el('button', { type: 'button', class: 'btn btn-primary', onclick: iniciar }, 'Configurar app autenticador');
     sec.append(el('p', { class: 'muted' }, 'MFA desativado.'), botao, aviso);
@@ -97,10 +99,11 @@ function secaoMfa(perfil, recarregar) {
           el('h2', {}, 'Configurar app autenticador'),
           el('p', {}, 'No app autenticador, adicione uma conta com a chave abaixo (ou cole a URI). Depois digite o código de 6 dígitos que ele mostrar.'),
           el('p', { class: 'muted' }, 'Chave (base32):'),
-          el('div', { class: 'id-display' }, el('code', {}, segredo), copiar(segredo)),
+          el('div', { class: 'code-block' }, el('code', {}, segredo), copiar(segredo)),
           el('p', { class: 'muted' }, 'URI otpauth://'),
-          el('div', { class: 'id-display' }, el('code', {}, uri), copiar(uri)),
-          el('form', { class: 'form', onsubmit: enviar }, el('label', {}, 'Código do app', codigo), confirmar, aviso),
+          el('div', { class: 'code-block' }, el('code', {}, uri), copiar(uri)),
+          el('form', { class: 'form', onsubmit: enviar },
+            el('label', { class: 'field' }, 'Código do app', codigo), el('div', { class: 'form-actions' }, confirmar), aviso),
         );
         codigo.focus();
       } catch (e) {
@@ -111,7 +114,7 @@ function secaoMfa(perfil, recarregar) {
     return sec;
   }
 
-  sec.append(el('p', { class: 'ok' }, 'MFA ativo.'));
+  sec.append(el('p', { class: 'text-success' }, 'MFA ativo.'));
   if (perfil.politica.mfa_obrigatorio) {
     sec.append(el('p', { class: 'muted' }, 'A política da organização exige MFA: não é possível desativar.'));
     return sec;
@@ -122,7 +125,7 @@ function secaoMfa(perfil, recarregar) {
   async function desativar(ev) {
     ev.preventDefault();
     botao.disabled = true;
-    aviso.className = 'muted';
+    aviso.className = 'status status-busy';
     aviso.textContent = 'Derivando chave…';
     await pintar();
     try {
@@ -136,8 +139,10 @@ function secaoMfa(perfil, recarregar) {
       senha.value = '';
     }
   }
+  sec.classList.add('card-danger');
   sec.append(el('form', { class: 'form', onsubmit: desativar },
-    el('label', {}, 'Senha-mestra', senha), el('label', {}, 'Código do app ou de recuperação', codigo), botao, aviso));
+    el('label', { class: 'field' }, 'Senha-mestra', senha), el('label', { class: 'field' }, 'Código do app ou de recuperação', codigo),
+    el('div', { class: 'form-actions' }, botao), aviso));
   return sec;
 }
 
@@ -149,11 +154,12 @@ function mostrarCodigos(sec, email, codigos, recarregar) {
     el('h2', {}, 'MFA ativado'),
     el('div', { class: 'alert alert-warning' },
       'Estes 10 códigos de recuperação aparecem só agora. Cada um vale uma vez, no lugar do código do app (ex.: se perder o celular).'),
-    el('ul', {}, ...codigos.map((c) => el('li', {}, el('code', {}, c)))),
-    el('button', { type: 'button', class: 'btn btn-secondary', onclick: () => baixarTexto('cofre-codigos-mfa.txt', textoCodigosMfa({ email, codigos })) },
-      'Baixar códigos (.txt)'),
-    el('label', { class: 'checkbox-label' }, guardei, 'Guardei os códigos em local seguro'),
-    concluir,
+    el('ul', { class: 'code-list' }, ...codigos.map((c) => el('li', {}, el('code', {}, c)))),
+    el('div', { class: 'action-bar' },
+      el('button', { type: 'button', class: 'btn btn-secondary', onclick: () => baixarTexto('cofre-codigos-mfa.txt', textoCodigosMfa({ email, codigos })) },
+        'Baixar códigos (.txt)')),
+    el('label', { class: 'checkbox' }, guardei, 'Guardei os códigos em local seguro'),
+    el('div', { class: 'form-actions' }, concluir),
   );
 }
 
@@ -168,17 +174,19 @@ const NOMES_EVENTO = {
 
 async function secaoMeusEventos() {
   const sec = el('section', { class: 'card', id: 'meus-eventos' }, el('h2', {}, 'Meus acessos'));
-  const aviso = el('p', { class: 'muted', role: 'status' });
-  const lista = el('ul', { class: 'secret-list' });
+  const aviso = el('p', { class: 'status', role: 'status' });
+  const lista = el('ul', { class: 'list list-divided' });
   const mais = el('button', { type: 'button', class: 'btn btn-secondary btn-sm', hidden: true }, 'Mais antigos');
   let cursor = null;
   async function carregar() {
     try {
       const q = cursor ? `?limite=20&antes_de_id=${cursor}` : '?limite=20';
       const eventos = await api('GET', `/eu/eventos${q}`);
-      lista.append(...eventos.map((e) => el('li', { class: 'secret-item' },
-        el('span', {}, `${quando(e.em)} · ${NOMES_EVENTO[e.tipo] ?? e.tipo} · ${e.resultado === 'ok' ? 'ok' : 'FALHOU'}`),
-        el('span', { class: 'muted' }, ` ${e.ip ?? ''} ${e.user_agent ?? ''}`))));
+      lista.append(...eventos.map((e) => el('li', { class: 'list-item' },
+        el('div', { class: 'list-item-info' },
+          el('span', {}, `${quando(e.em)} · ${NOMES_EVENTO[e.tipo] ?? e.tipo} · `,
+            el('span', { class: e.resultado === 'ok' ? 'badge badge-success' : 'badge badge-danger' }, e.resultado === 'ok' ? 'ok' : 'FALHOU')),
+          el('span', { class: 'list-item-meta' }, ` ${e.ip ?? ''} ${e.user_agent ?? ''}`)))));
       cursor = eventos.at(-1)?.id ?? cursor;
       mais.hidden = eventos.length < 20;
       aviso.textContent = lista.childElementCount ? 'Se algum acesso não foi seu, troque a senha-mestra e encerre as sessões.' : 'Nenhum evento.';
@@ -194,7 +202,7 @@ async function secaoMeusEventos() {
 
 async function secaoSessoes() {
   const sec = el('section', { class: 'card' }, el('h2', {}, 'Sessões ativas'));
-  const aviso = el('p', { class: 'muted', role: 'status' });
+  const aviso = el('p', { class: 'status', role: 'status' });
   let lista;
   try {
     lista = await api('GET', '/eu/sessoes');
@@ -204,9 +212,12 @@ async function secaoSessoes() {
   }
   const itens = lista.map((s) => {
     const encerrar = el('button', { type: 'button', class: 'btn btn-secondary btn-sm' }, s.atual ? 'Sair desta' : 'Encerrar');
-    const li = el('li', {},
-      `${s.atual ? '(esta) ' : ''}${s.user_agent ?? 'navegador desconhecido'} · IP ${s.ip ?? '?'} · criada ${quando(s.criada_em)} · último uso ${quando(s.ultimo_uso)} `,
-      encerrar);
+    const li = el('li', { class: 'list-item' },
+      el('div', { class: 'list-item-main' },
+        el('div', { class: 'list-item-info' },
+          el('span', {}, s.atual ? el('span', { class: 'badge badge-success' }, '(esta)') : null, s.atual ? ' ' : null,
+            `${s.user_agent ?? 'navegador desconhecido'} · IP ${s.ip ?? '?'} · criada ${quando(s.criada_em)} · último uso ${quando(s.ultimo_uso)}`)),
+        el('div', { class: 'list-item-actions' }, encerrar)));
     encerrar.addEventListener('click', async () => {
       if (s.atual) return sair();
       encerrar.disabled = true;
@@ -220,7 +231,7 @@ async function secaoSessoes() {
     });
     return li;
   });
-  sec.append(el('ul', {}, ...itens), aviso);
+  sec.append(el('ul', { class: 'list list-divided' }, ...itens), aviso);
   return sec;
 }
 
@@ -228,7 +239,7 @@ async function secaoSessoes() {
 
 async function secaoPolitica() {
   const sec = el('section', { class: 'card' }, el('h2', {}, 'Política da organização'));
-  const aviso = el('p', { class: 'muted', role: 'status' });
+  const aviso = el('p', { class: 'status', role: 'status' });
   let org;
   try {
     org = await api('GET', '/org');
@@ -244,7 +255,7 @@ async function secaoPolitica() {
     botao.disabled = true;
     try {
       const nova = await api('PUT', '/org/politica', { mfa_obrigatorio: mfa.checked, inatividade_min: Number(minutos.value) });
-      aviso.className = 'ok';
+      aviso.className = 'status status-success';
       aviso.textContent = `Política salva: MFA ${nova.mfa_obrigatorio ? 'obrigatório' : 'opcional'}, bloqueio após ${nova.inatividade_min} min.`;
     } catch (e) {
       falhou(aviso, e);
@@ -253,9 +264,9 @@ async function secaoPolitica() {
     }
   }
   sec.append(el('form', { class: 'form', onsubmit: salvar },
-    el('label', { class: 'checkbox-label' }, mfa, 'Exigir MFA de todos'),
-    el('label', {}, 'Bloquear após quantos minutos sem uso (5 a 60)', minutos),
-    botao, aviso));
+    el('label', { class: 'checkbox' }, mfa, 'Exigir MFA de todos'),
+    el('label', { class: 'field' }, 'Bloquear após quantos minutos sem uso (5 a 60)', minutos),
+    el('div', { class: 'form-actions' }, botao), aviso));
   return sec;
 }
 
@@ -266,18 +277,18 @@ function secaoSenha(perfil) {
   const nova = senhaInput('new-password');
   const conf = senhaInput('new-password');
   const totp = perfil.mfa_ativo ? codigoInput() : null;
-  const aviso = el('p', { class: 'muted', role: 'status' });
+  const aviso = el('p', { class: 'status', role: 'status' });
   const botao = el('button', { type: 'submit', class: 'btn btn-primary' }, 'Trocar senha-mestra');
 
   async function trocarSenha(ev) {
     ev.preventDefault();
-    aviso.className = 'error-msg';
+    aviso.className = 'status status-danger';
     if (nova.value !== conf.value) {
       aviso.textContent = 'A confirmação não confere com a nova senha-mestra.';
       return;
     }
     botao.disabled = true;
-    aviso.className = 'muted';
+    aviso.className = 'status status-busy';
     aviso.textContent = 'Derivando chaves…';
     await pintar();
     try {
@@ -285,7 +296,7 @@ function secaoSenha(perfil) {
       const corpo = await montarTrocaSenha({ perfil: atualizado, senhaAtual: atual.value, senhaNova: nova.value });
       if (totp) corpo.totp = totp.value.trim();
       await api('POST', '/eu/senha', corpo);
-      aviso.className = 'ok';
+      aviso.className = 'status status-success';
       aviso.textContent = 'Senha-mestra trocada. As outras sessões foram encerradas.';
     } catch (e) {
       falhou(aviso, e, e.message === 'senha_curta' ? 'A nova senha-mestra precisa de pelo menos 12 caracteres.'
@@ -301,9 +312,9 @@ function secaoSenha(perfil) {
   return el('section', { class: 'card' },
     el('h2', {}, 'Trocar senha-mestra'),
     el('form', { class: 'form', onsubmit: trocarSenha },
-      el('label', {}, 'Senha-mestra atual', atual),
-      el('label', {}, 'Nova senha-mestra (mínimo 12 caracteres)', nova),
-      el('label', {}, 'Confirme a nova senha-mestra', conf),
-      totp ? el('label', {}, 'Código do app autenticador', totp) : null,
-      botao, aviso));
+      el('label', { class: 'field' }, 'Senha-mestra atual', atual),
+      el('label', { class: 'field' }, 'Nova senha-mestra (mínimo 12 caracteres)', nova),
+      el('label', { class: 'field' }, 'Confirme a nova senha-mestra', conf),
+      totp ? el('label', { class: 'field' }, 'Código do app autenticador', totp) : null,
+      el('div', { class: 'form-actions' }, botao), aviso));
 }

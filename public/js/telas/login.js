@@ -18,8 +18,8 @@ export function telaLogin(app) {
   const email = el('input', { type: 'email', required: true, autocomplete: 'username' });
   const senha = el('input', { type: 'password', required: true, autocomplete: 'current-password' });
   const codigo = el('input', { inputmode: 'numeric', autocomplete: 'one-time-code', maxlength: 16 });
-  const campoCodigo = el('label', { hidden: true }, 'Código do app autenticador (ou código de recuperação)', codigo);
-  const aviso = el('p', { class: estado.aviso ? 'ok' : 'muted', role: 'status' }, estado.aviso);
+  const campoCodigo = el('label', { class: 'field', hidden: true }, 'Código do app autenticador (ou código de recuperação)', codigo);
+  const aviso = el('p', { class: estado.aviso ? 'status status-success' : 'status', role: 'status' }, estado.aviso);
   const botao = el('button', { type: 'submit', class: 'btn btn-primary' }, 'Entrar');
   definir({ aviso: null });
   let derivado = null; // { corpo, kek } entre a senha e o código do MFA
@@ -34,9 +34,10 @@ export function telaLogin(app) {
   async function entrar(ev) {
     ev.preventDefault();
     botao.disabled = true;
-    aviso.className = 'muted';
+    aviso.className = 'status';
     try {
       if (!derivado) {
+        aviso.className = 'status status-busy';
         aviso.textContent = 'Derivando chave…';
         await pintar();
         const pre = await api('POST', '/prelogin', { email: email.value });
@@ -47,7 +48,7 @@ export function telaLogin(app) {
       derivado = null;
       location.hash = resp.usuario.estado === 'ativo' && !resp.mfa_pendente ? '#/cofre' : '#/conta';
     } catch (e) {
-      aviso.className = 'error-msg';
+      aviso.className = 'status status-danger';
       aviso.textContent = e instanceof ErroApi ? mensagem(e) : 'Não foi possível abrir as chaves da conta.';
       if (e instanceof ErroApi && ['mfa_requerido', 'mfa_invalido'].includes(e.codigo)) {
         email.disabled = senha.disabled = true; // a senha já foi derivada; só falta o código
@@ -65,9 +66,11 @@ export function telaLogin(app) {
 
   trocar(
     app,
-    el('h1', {}, 'Entrar'),
-    el('form', { class: 'form', onsubmit: entrar },
-      el('label', {}, 'E-mail', email), el('label', {}, 'Senha-mestra', senha), campoCodigo, botao, aviso),
-    el('p', {}, el('a', { href: '#/recuperar' }, 'Esqueci a senha-mestra: usar o kit de emergência')),
+    el('div', { class: 'page-header' }, el('h1', {}, 'Entrar')),
+    el('section', { class: 'card' },
+      el('form', { class: 'form', onsubmit: entrar },
+        el('label', { class: 'field' }, 'E-mail', email), el('label', { class: 'field' }, 'Senha-mestra', senha), campoCodigo,
+        el('div', { class: 'form-actions' }, botao), aviso)),
+    el('p', {}, el('a', { class: 'back-link', href: '#/recuperar' }, 'Esqueci a senha-mestra: usar o kit de emergência')),
   );
 }
