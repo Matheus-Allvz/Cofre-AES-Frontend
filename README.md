@@ -27,3 +27,4 @@ python test/vetores/gerar_vetores.py --verificar   # vetores cruzados gerados pe
 - `public/js/dom.js`: único ponto que cria DOM (sem `innerHTML`).
 - `public/vendor/`: bibliotecas vendorizadas com SHA-256 registrado em `public/vendor/README.md`.
 - `nginx.conf`: template do nginx com CSP estrita e Trusted Types.
+- `public/js/telas/auditoria.js`: tela `#/auditoria` (owner/admin) com filtros e paginação por cursor.
