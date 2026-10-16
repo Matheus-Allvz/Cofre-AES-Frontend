@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design system · Cofre AES</title>
+<!-- Vitrine estática (não vai para a imagem). Sem script nem estilo inline: mesma CSP de produção.
+     Tema claro/escuro: troque o tema do sistema ou emule prefers-color-scheme no DevTools. -->
+<link rel="stylesheet" href="../public/css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#">Cofre AES <span class="brand-sub">Empresarial</span></a>
+    <nav class="nav" aria-label="Principal">
+      <a class="nav-link" href="#" aria-current="page">Cofre</a>
+      <a class="nav-link" href="#">Pessoas</a>
+      <a class="nav-link" href="#">Auditoria</a>
+      <a class="nav-link" href="#">Conta</a>
+    </nav>
+    <div class="topbar-actions">
+      <span class="topbar-user">Ana Souza <span class="badge badge-accent">owner</span></span>
+      <button type="button" class="btn btn-ghost btn-sm">Bloquear</button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <div class="page-header">
+    <div>
+      <h1>Design system</h1>
+      <p class="page-subtitle">Componentes do Cofre AES Empresarial · referência em docs/design-system.md</p>
+    </div>
+    <div class="page-actions"><button type="button" class="btn btn-primary">Ação primária</button></div>
+  </div>
+
+  <section class="card">
+    <h2 class="card-title">Botões</h2>
+    <div class="action-bar">
+      <button type="button" class="btn btn-primary">Primário</button>
+      <button type="button" class="btn btn-secondary">Secundário</button>
+      <button type="button" class="btn btn-ghost">Fantasma</button>
+      <button type="button" class="btn btn-danger">Perigo</button>
+      <button type="button" class="btn btn-danger-outline">Perigo contorno</button>
+      <button type="button">Sem classe</button>
+    </div>
+    <div class="action-bar">
+      <button type="button" class="btn btn-primary btn-sm">Pequeno</button>
+      <button type="button" class="btn btn-primary">Médio</button>
+      <button type="button" class="btn btn-primary btn-lg">Grande</button>
+      <button type="button" class="btn btn-primary" disabled>Desabilitado</button>
+      <button type="button" class="btn btn-primary" disabled aria-busy="true">Entrando…</button>
+      <button type="button" class="btn btn-secondary btn-icon" aria-label="Copiar">⧉</button>
+    </div>
+    <h3>Hierarquia de ações da coleção</h3>
+    <div class="action-bar">
+      <button type="button" class="btn btn-primary btn-sm">Novo item</button>
+      <button type="button" class="btn btn-secondary btn-sm">Membros</button>
+      <details class="menu">
+        <summary class="btn btn-ghost btn-sm">Mais ações </summary>
+        <ul class="menu-list">
+          <li><button type="button" class="btn btn-ghost btn-sm">Lixeira</button></li>
+          <li><button type="button" class="btn btn-ghost btn-sm">Renomear</button></li>
+        </ul>
+      </details>
+      <button type="button" class="btn btn-danger-outline btn-sm push-end">Excluir coleção</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <div>
+        <h2 class="card-title">Formulário</h2>
+        <p class="card-subtitle">Rótulo sempre acima do campo.</p>
+      </div>
+    </div>
+    <form class="form">
+      <label class="field">E-mail <input type="email" autocomplete="off" value="ana@empresa.com.br"></label>
+      <label class="field">Senha-mestra
+        <span class="input-group">
+          <input type="password" value="exemplo-de-senha" aria-describedby="ajuda-senha">
+          <button type="button" class="btn btn-secondary btn-sm" aria-pressed="false">Mostrar</button>
+        </span>
+        <span class="field-help" id="ajuda-senha">Mínimo de 12 caracteres.</span>
+      </label>
+      <label class="field">Confirme a senha-mestra
+        <input type="password" value="outra" aria-invalid="true" aria-describedby="erro-conf">
+        <span class="field-error" id="erro-conf">A confirmação não confere com a senha-mestra.</span>
+      </label>
+      <label class="field">Tipo <select><option>Login</option><option>Nota segura</option><option>Chave de API</option></select></label>
+      <label class="field">Notas <textarea rows="3">Texto livre</textarea></label>
+      <label class="field">Somente leitura <input readonly value="valor revelado"></label>
+      <label class="field">Desabilitado <input disabled value="não editável"></label>
+      <label class="checkbox"><input type="checkbox"> Guardei o kit de emergência em local seguro</label>
+      <div class="form-actions">
+        <button type="button" class="btn btn-primary">Salvar</button>
+        <button type="button" class="btn btn-ghost">Cancelar</button>
+      </div>
+      <p class="status status-busy" role="status">Derivando chave…</p>
+    </form>
+    <h3>Filtros (form-grid)</h3>
+    <form class="form form-wide">
+      <div class="form-grid">
+        <label class="field">Tipo <input placeholder="ex.: item.revelado"></label>
+        <label class="field">Pessoa <select><option>Todas</option></select></label>
+        <label class="field">De <input type="datetime-local"></label>
+        <label class="field">Até <input type="datetime-local"></label>
+        <div><button type="button" class="btn btn-primary">Filtrar</button></div>
+      </div>
+    </form>
+  </section>
+
+  <section class="card card-accent">
+    <h2 class="card-title">Lista e badges</h2>
+    <ul class="list">
+      <li class="list-item">
+        <div class="list-item-main">
+          <div class="list-item-info">
+            <span class="list-item-title">Servidor de produção</span>
+            <span class="list-item-meta">Login · root@prod.empresa.com.br</span>
+          </div>
+          <div class="list-item-actions"><button type="button" class="btn btn-secondary btn-sm">Abrir</button></div>
+        </div>
+      </li>
+      <li class="list-item is-selected">
+        <div class="list-item-main">
+          <div class="list-item-info">
+            <span class="list-item-title">Chave da API de pagamentos</span>
+            <span class="list-item-meta">Chave de API · aberto no painel</span>
+          </div>
+          <div class="list-item-actions"><button type="button" class="btn btn-secondary btn-sm">Abrir</button></div>
+        </div>
+      </li>
+      <li class="list-item list-item-error">Item adulterado: não decifra com a chave da coleção.</li>
+      <li class="list-item">
+        <div class="list-item-main">
+          <div class="list-item-info">
+            <span class="list-item-title">Bruno Lima</span>
+            <span class="list-item-meta">bruno.lima.de.oliveira.com.um.email.bem.longo@empresa.com.br</span>
+            <span class="badges"><span class="badge badge-info">admin</span> <span class="badge badge-warning">aguardando confirmação</span></span>
+          </div>
+          <div class="list-item-actions">
+            <button type="button" class="btn btn-primary btn-sm">Conferir fingerprint</button>
+            <button type="button" class="btn btn-danger-outline btn-sm">Remover</button>
+          </div>
+        </div>
+      </li>
+    </ul>
+    <p class="badges">
+      <span class="badge badge-accent">owner</span> <span class="badge badge-info">admin</span> <span class="badge">member</span>
+      <span class="badge badge-accent">gerenciar</span> <span class="badge badge-info">editar</span> <span class="badge">ver</span>
+      <span class="badge badge-warning">ver sem revelar</span>
+      <span class="badge badge-success">ativo</span> <span class="badge badge-danger">suspenso</span>
+    </p>
+    <h3>Lista com divisórias (sessões)</h3>
+    <ul class="list list-divided">
+      <li class="list-item"><div class="list-item-main"><div class="list-item-info"><span class="list-item-title">Firefox · Windows <span class="badge badge-success">esta sessão</span></span><span class="list-item-meta">IP 10.0.0.4 · último uso 16/10/2026 09:12</span></div><div class="list-item-actions"><button type="button" class="btn btn-ghost btn-sm">Sair desta</button></div></div></li>
+      <li class="list-item"><div class="list-item-main"><div class="list-item-info"><span class="list-item-title">Chrome · Android</span><span class="list-item-meta">IP 10.0.0.9 · último uso 15/10/2026 18:40</span></div><div class="list-item-actions"><button type="button" class="btn btn-secondary btn-sm">Encerrar</button></div></div></li>
+    </ul>
+    <div class="empty"><strong class="empty-title">Sem itens</strong>Use “Novo item” para começar.</div>
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">Tabela</h2>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Eventos de auditoria">
+      <table class="table">
+        <thead><tr><th>#</th><th>Quando</th><th>Tipo</th><th>Resultado</th><th>Quem</th><th>Detalhes</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1042</td><td class="nowrap">16/10/2026 09:12</td><td>item.revelado</td><td><span class="badge badge-success">ok</span></td><td>ana@empresa.com.br</td><td><code>{"colecao":"Infra"}</code></td></tr>
+          <tr><td class="num">1041</td><td class="nowrap">16/10/2026 09:10</td><td>auth.login</td><td><span class="badge badge-danger">falhou</span></td><td>—</td><td><code></code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">Alertas e status</h2>
+    <div class="alert alert-warning" role="alert"><strong class="alert-title">Rotação pendente</strong>Alguém perdeu o acesso a esta coleção e ainda tem a chave antiga.</div>
+    <div class="alert alert-danger">Não confere. Não ative esta conta: a chave pública pode ter sido trocada.</div>
+    <div class="alert alert-success">Cadastro concluído. Entre com sua senha-mestra.</div>
+    <div class="alert alert-info">Ver sem revelar: a pessoa vê título, usuário e URLs, mas não a senha.</div>
+    <p class="status" role="status">Se algum acesso não foi seu, troque a senha-mestra.</p>
+    <p class="status status-success" role="status">Copiado. O clipboard será limpo em 30 s.</p>
+    <p class="status status-danger" role="status">Senha-mestra atual incorreta.</p>
+    <p class="error-msg" role="alert"></p>
+    <p class="muted">↑ um .error-msg vazio fica oculto (não vira barra vermelha).</p>
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">Segredo, código, fingerprint, kit</h2>
+    <div class="secret">
+      <div class="secret-field"><span class="secret-label">Senha</span><span class="secret-value secret-masked">••••••••</span></div>
+      <div class="secret-actions">
+        <button type="button" class="btn btn-secondary btn-sm" aria-pressed="false">Revelar</button>
+        <button type="button" class="btn btn-secondary btn-sm">Copiar</button>
+      </div>
+    </div>
+    <div class="secret is-revealed">
+      <div class="secret-field"><span class="secret-label">Senha <span class="badge badge-warning">Visível</span></span><input class="secret-value" readonly value="c0rrect-h0rse-battery-staple" aria-label="Senha"></div>
+      <div class="secret-actions">
+        <button type="button" class="btn btn-ghost btn-sm" aria-pressed="true">Ocultar</button>
+        <button type="button" class="btn btn-secondary btn-sm">Copiar</button>
+      </div>
+    </div>
+    <div class="code-block"><code>otpauth://totp/Cofre:ana@empresa.com.br?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP&amp;issuer=Cofre</code><button type="button" class="btn btn-secondary btn-sm">Copiar</button></div>
+    <div class="code-block fingerprint"><code>A1B2 C3D4 E5F6 0718 293A 4B5C</code></div>
+    <div class="alert alert-warning">Esta Recovery Key aparece só agora. Baixe o kit e guarde fora do computador.</div>
+    <div class="kit">ABCD-EFGH-IJKL-MNOP-QRST-UVWX-YZ23-4567-ABCD-EFGH-IJKL-MNOP-QRST</div>
+    <ul class="code-list">
+      <li><code>7K2M-9QXP</code></li><li><code>4HTR-2WNA</code></li><li><code>PL8D-3VCZ</code></li><li><code>6YBE-QJ5S</code></li>
+    </ul>
+    <pre>{
+  "titulo": "Servidor de produção",
+  "usuario": "root"
+}</pre>
+  </section>
+
+  <section class="card card-danger">
+    <h2 class="card-title">Diálogo (visualização estática)</h2>
+    <p class="muted">Em produção é &lt;dialog class="dialog dialog-danger"&gt; aberto com showModal(); aqui aparece com o atributo open.</p>
+    <dialog class="dialog dialog-danger" open aria-labelledby="dlg-t">
+      <h2 class="dialog-title" id="dlg-t">Excluir a coleção “Infra”?</h2>
+      <p>Só funciona vazia (inclusive a lixeira).</p>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost">Cancelar</button>
+        <button type="button" class="btn btn-danger">Excluir coleção</button>
+      </div>
+    </dialog>
+  </section>
+</main>
+</body>
+</html>
