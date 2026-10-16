@@ -1,2 +1,4 @@
 * text=auto eol=lf
 public/vendor/** -text
+# O README do vendor é texto nosso (o resto de vendor/ fica byte a byte, com hash): LF sempre.
+public/vendor/README.md text eol=lf

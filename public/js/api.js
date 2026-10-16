@@ -42,6 +42,8 @@ const MENSAGENS = {
   ultimo_gerente: 'A coleção precisa de pelo menos uma pessoa com permissão de gerenciar.',
   rotacao_incompleta: 'A coleção mudou durante a rotação (membros ou itens).',
   corpo_grande: 'Dados grandes demais para uma requisição.',
+  membros_alterados: 'Alguém ganhou ou perdeu acesso à coleção durante a rotação.',
+  envelope_existente: 'Esta pessoa já tem a chave de alguma das coleções enviadas. Recarregue e tente de novo.',
 };
 
 export class ErroApi extends Error {

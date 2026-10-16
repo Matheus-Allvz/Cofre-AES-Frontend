@@ -112,7 +112,7 @@ test('owner remove o member: coleção com rotação pendente, item em "senhas a
 
 test('rotação: nova chave_ver; com a collectionKey antiga o ex-membro não decifra meta_cif nem segredo_cif novos', opcoes, async () => {
   const antes = await sincronizar(ctx.owner, ctx.eu);
-  const r = await rotacionarColecao({ eu: ctx.eu, colecao: antes.colecoes.get(ctx.colId), pedir: pedirDe(ctx.owner) });
+  const r = await rotacionarColecao({ eu: ctx.eu, colecao: antes.colecoes.get(ctx.colId), pedir: pedirDe(ctx.owner), itensSync: antes.itens });
   assert.deepEqual(r, { chave_ver: 2 });
   const depois = await sincronizar(ctx.owner, ctx.eu);
   const col = depois.colecoes.get(ctx.colId);
@@ -158,7 +158,7 @@ test('remover pessoa da org devolve o relatório e marca a coleção; promover a
   assert.deepEqual([rem.status, rem.dados], [200, { relatorio: [{ colecao_id: ctx.colId, itens: [ctx.itemId] }] }]);
   aberto = await sincronizar(ctx.owner, ctx.eu);
   assert.equal(aberto.colecoes.get(ctx.colId).rotacaoPendente, true);
-  assert.deepEqual(await rotacionarColecao({ eu: ctx.eu, colecao: aberto.colecoes.get(ctx.colId), pedir: pedirDe(ctx.owner) }), { chave_ver: 3 });
+  assert.deepEqual(await rotacionarColecao({ eu: ctx.eu, colecao: aberto.colecoes.get(ctx.colId), pedir: pedirDe(ctx.owner), itensSync: aberto.itens }), { chave_ver: 3 });
 
   // Promoção: sem envelope de alguma coleção → 422; com todas → a colega abre todas como gerenciar.
   aberto = await sincronizar(ctx.owner, ctx.eu);

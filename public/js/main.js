@@ -6,6 +6,7 @@ import { telaConta } from './telas/conta.js';
 import { telaRecuperar } from './telas/recuperar.js';
 import { telaPessoas } from './telas/pessoas.js';
 import { telaCofre } from './telas/cofre.js';
+import { telaAuditoria } from './telas/auditoria.js';
 import { lerRota } from './rota.js';
 
 const app = document.getElementById('app');
@@ -47,7 +48,7 @@ function diagnostico() {
   return el('section', { class: 'card' }, el('h2', {}, 'Diagnóstico'), botao, saida);
 }
 
-// Roteador por location.hash: #/convite/<token>, #/cofre, #/conta, #/pessoas, #/recuperar, resto → #/login.
+// Roteador por location.hash: #/convite/<token>, #/cofre, #/conta, #/pessoas, #/auditoria, #/recuperar, resto → #/login.
 function rotear() {
   const { rota, param } = lerRota(location.hash);
   if (rota === 'convite') {
@@ -57,6 +58,7 @@ function rotear() {
   if (rota === 'cofre') return telaCofre(app);
   if (rota === 'conta') return telaConta(app);
   if (rota === 'pessoas') return telaPessoas(app);
+  if (rota === 'auditoria') return telaAuditoria(app);
   if (rota === 'recuperar') return telaRecuperar(app);
   return telaLogin(app);
 }

@@ -410,31 +410,66 @@ function senhasATrocar(ctx) {
     })));
 }
 
-function bannerRotacao({ recarregar }, col) {
+const CONFLITOS_ROTACAO = ['chave_ver_desatualizada', 'conflito_versao', 'rotacao_incompleta', 'membros_alterados', 'ocupado'];
+
+/**
+ * Rotação em dois passos: "Rotacionar" busca os dados (GET /rotacao, conferidos contra o sync) e
+ * mostra quem vai receber a chave nova, com o fingerprint; só "Confirmar rotação" recifra e envia.
+ */
+function bannerRotacao({ recarregar, dados: aberto }, col) {
   const aviso = el('p', { class: 'muted', role: 'status' });
+  const confirmacao = el('div');
+  const pedir = (m, c, corpo) => api(m, c, corpo);
+  function erro(e) {
+    const codigo = e instanceof ErroApi ? e.codigo : e.message;
+    if (CONFLITOS_ROTACAO.includes(codigo)) {
+      window.alert(`${mensagem(new ErroApi(409, codigo))} O cofre foi recarregado: rotacione de novo.`);
+      return recarregar(); // re-sincroniza e o banner volta com o estado novo
+    }
+    executar.disabled = false;
+    trocar(confirmacao);
+    falhou(aviso, e, {
+      adulterado: 'Algum item desta coleção não decifra (possível adulteração). A rotação não foi feita.',
+      divergencia_sync: 'Os itens que o servidor entregou para a rotação não batem com os que este navegador sincronizou (versão ou chave diferentes, ou item sumido): possível rollback no servidor ou alteração em outro lugar. Nada foi enviado. Recarregue o cofre e tente de novo; se repetir, avise um administrador.',
+      chave_publica_divergente: 'A chave pública de algum membro não confere com o fingerprint confirmado. Nada foi enviado: avise um administrador.',
+      fingerprint_nao_confirmado: 'Algum membro ainda não teve o fingerprint confirmado. Nada foi enviado.',
+    }[e.message] ?? 'Não foi possível rotacionar.');
+  }
   const executar = botao('Rotacionar a chave agora', 'btn-primary', async () => {
     executar.disabled = true;
     aviso.className = 'muted';
-    aviso.textContent = 'Recifrando a coleção com uma chave nova…';
+    aviso.textContent = 'Buscando a coleção para a rotação…';
+    let preparo;
     try {
-      await cofre.rotacionarColecao({ eu: eu(), colecao: col, pedir: (m, c, corpo) => api(m, c, corpo) });
-      recarregar();
+      preparo = await cofre.prepararRotacao({ eu: eu(), colecao: col, pedir, itensSync: aberto.itens });
     } catch (e) {
-      const conflito = e instanceof ErroApi ? e.codigo : e.message;
-      if (['chave_ver_desatualizada', 'conflito_versao', 'rotacao_incompleta', 'ocupado'].includes(conflito)) {
-        window.alert(`${mensagem(new ErroApi(409, conflito))} O cofre foi recarregado: rotacione de novo.`);
-        return recarregar(); // re-sincroniza e o banner volta com o estado novo
-      }
-      executar.disabled = false;
-      falhou(aviso, e, e.message === 'adulterado'
-        ? 'Algum item desta coleção não decifra (possível adulteração). A rotação não foi feita.'
-        : 'Não foi possível rotacionar.');
+      return erro(e);
     }
+    aviso.textContent = '';
+    const confirmar = botao('Confirmar rotação', 'btn-primary', async () => {
+      confirmar.disabled = true;
+      aviso.className = 'muted';
+      aviso.textContent = 'Recifrando a coleção com uma chave nova…';
+      try {
+        await cofre.concluirRotacao({ eu: eu(), colecao: col, pedir, preparo });
+        recarregar();
+      } catch (e) {
+        erro(e);
+      }
+    });
+    trocar(confirmacao, el('div', { class: 'card', id: 'rotacao-destinatarios' },
+      el('h3', {}, `A chave nova vai para ${preparo.destinatarios.length} pessoa(s):`),
+      el('ul', {}, ...preparo.destinatarios.map((d) => el('li', {},
+        `${d.voce ? 'Você' : `${d.nome ?? '(sem nome)'} <${d.email ?? d.id}>`}${d.estado === 'suspenso' ? ' · suspensa (recebe a chave para não perder a coleção ao ser reativada)' : ''} · `,
+        el('code', {}, d.fingerprint)))),
+      el('p', { class: 'muted' }, 'Confira se a lista é a esperada: quem não está nela perde o acesso à coleção.'),
+      confirmar,
+      botao('Cancelar', 'btn-ghost', () => { trocar(confirmacao); executar.disabled = false; })));
   });
   return el('div', { class: 'alert alert-warning', role: 'alert' },
     el('p', {}, 'Rotação pendente: alguém perdeu o acesso a esta coleção e ainda tem a chave antiga. '
       + 'Rotacionar gera uma chave nova, recifra nome, itens (inclusive lixeira) e histórico e entrega a chave só aos membros atuais.'),
-    executar, aviso);
+    executar, confirmacao, aviso);
 }
 
 const nomeDe = (p) => (p ? `${p.nome ?? '(sem nome)'} <${p.email}>` : '(pessoa removida)');

@@ -330,19 +330,57 @@ export async function montarRotacao({ eu, colecao, membros, pessoas, itens, vers
 }
 
 /**
- * Rotação completa a partir do cliente de quem gerencia. `pedir(metodo, caminho, corpo)` devolve o
- * JSON ou lança (api.js na tela, o "navegador" no E2E). Membros, itens (inclusive lixeira) com
- * segredo e versões vêm de GET /colecoes/{id}/rotacao numa resposta, auditada no servidor como um
- * evento `colecao.rotacao_iniciada`. Chave da coleção mudou desde o sync → erro
- * 'chave_ver_desatualizada' (o chamador re-sincroniza); 409 do POST idem.
+ * Herdado da Fase 7 (detecção de rollback): cada item que este navegador sincronizou nesta coleção
+ * tem de vir de GET /rotacao com a MESMA `versao` e `chave_ver` e fora da lixeira. Divergência
+ * (servidor devolvendo blob antigo, item sumido ou alterado depois do sync) → erro
+ * 'divergencia_sync' antes de decifrar ou enviar qualquer coisa: o chamador recarrega e refaz.
  */
-export async function rotacionarColecao({ eu, colecao, pedir }) {
+export function conferirRotacaoContraSync(dados, colecaoId, itensSync) {
+  if (!Array.isArray(itensSync)) throw new Error('sync_ausente');
+  const doServidor = new Map(dados.itens.map((i) => [i.id, i]));
+  for (const i of itensSync) {
+    if (i.colecaoId !== colecaoId) continue;
+    const r = doServidor.get(i.id);
+    if (!r || r.versao !== i.versao || r.chave_ver !== i.chaveVer || r.excluido_em) throw new Error('divergencia_sync');
+  }
+}
+
+/**
+ * Primeira metade da rotação, sem decifrar nada: GET /colecoes/{id}/rotacao (membros, itens com
+ * segredo e versões, auditado no servidor como um evento `colecao.rotacao_iniciada`) e GET /membros.
+ * Confere a chave_ver (mudou desde o sync → 'chave_ver_desatualizada'), o sync (acima) e a chave
+ * pública de cada destinatário contra o fingerprint confirmado. Devolve `destinatarios` (quem vai
+ * receber a chave nova, com fingerprint) para a UI mostrar ANTES de confirmar.
+ */
+export async function prepararRotacao({ eu, colecao, pedir, itensSync }) {
   const base = `/colecoes/${encodeURIComponent(colecao.id)}`;
   const dados = await pedir('GET', `${base}/rotacao`);
   if (dados.chave_ver !== colecao.chaveVer) throw new Error('chave_ver_desatualizada');
+  conferirRotacaoContraSync(dados, colecao.id, itensSync);
   const pessoas = await pedir('GET', '/membros');
+  const destinatarios = [];
+  for (const { usuario_id: uid } of dados.membros) {
+    const p = pessoas.find((x) => x.id === uid);
+    const publica = uid === eu.usuario.id ? eu.publica : await chavePublicaConfirmada(p);
+    destinatarios.push({ id: uid, nome: p?.nome ?? null, email: p?.email ?? null, estado: p?.estado ?? null, voce: uid === eu.usuario.id, fingerprint: await c.fingerprint(publica) });
+  }
+  return { base, dados, pessoas, destinatarios };
+}
+
+/** Segunda metade: recifra tudo com a chave nova e envia POST /rotacionar (409 → re-sincronizar). */
+export async function concluirRotacao({ eu, colecao, pedir, preparo }) {
+  const { base, dados, pessoas } = preparo;
   const tipos = new Map(dados.itens.map((i) => [i.id, i.tipo]));
   const versoes = dados.versoes.map((v) => ({ ...v, tipo: tipos.get(v.item_id) }));
   const corpo = await montarRotacao({ eu, colecao, membros: dados.membros, pessoas, itens: dados.itens, versoes });
   return pedir('POST', `${base}/rotacionar`, corpo);
+}
+
+/**
+ * Rotação completa (E2E e testes): preparar + concluir. `pedir(metodo, caminho, corpo)` devolve o
+ * JSON ou lança (api.js na tela, o "navegador" no E2E); `itensSync` = itens do sync aberto.
+ */
+export async function rotacionarColecao({ eu, colecao, pedir, itensSync }) {
+  const preparo = await prepararRotacao({ eu, colecao, pedir, itensSync });
+  return concluirRotacao({ eu, colecao, pedir, preparo });
 }
