@@ -51,3 +51,9 @@ test('SHA-256 do vendorizado confere com public/vendor/README.md', () => {
     assert.equal(sha, registrados[f], `${f} sem hash registrado ou divergente`);
   }
 });
+
+test('public/vendor/README.md em LF, garantido pelo .gitattributes (herdado da Fase 7)', () => {
+  assert.ok(!readFileSync(join(PUBLIC, 'vendor/README.md'), 'utf8').includes('\r'));
+  const atributos = readFileSync(fileURLToPath(new URL('../../.gitattributes', import.meta.url)), 'utf8');
+  assert.match(atributos, /^public\/vendor\/README\.md text eol=lf$/m);
+});
