@@ -1,11 +1,20 @@
+# Projeto cofre-empresa-front: não colide com a versão acadêmica (cofre-aes-frontend) na VPS.
+name: cofre-empresa-front
 services:
   front:
     build: .
+    container_name: cofre-empresa-front
     restart: unless-stopped
     ports:
       - "127.0.0.1:8097:80"
     environment:
+      # Só desenvolvimento: em produção o Caddy roteia /api/* direto para a API (8098).
       API_UPSTREAM: ${API_UPSTREAM:-http://host.docker.internal:8098}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
     mem_limit: 64m
