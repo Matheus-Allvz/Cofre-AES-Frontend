@@ -491,7 +491,8 @@ input[type="checkbox"], input[type="radio"] {
 }
 .table tbody tr:last-child td { border-bottom: 0; }
 .table tbody tr:hover { background: var(--surface-hover); }
-.table td code { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* min-width: sem ele o overflow-wrap:anywhere deixa a coluna com 1 caractere e a linha fica enorme */
+.table td code { display: inline-block; min-width: 16rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .table .nowrap { white-space: nowrap; }
 
